@@ -840,3 +840,7 @@ button.mic:disabled{opacity:.6}
 .question-options button{font-size:12.5px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer}
 .question-options button:hover{border-color:#245dee;background:#eef3ff;color:#1c4bd6}
 #question-dialog textarea{width:100%;font:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;resize:vertical}
+
+/* Stavové štítky úloh: běžící modře, refundované jantarově */
+.badge.running{background:#eef3ff;color:#245dee}
+.badge.refunded{background:#fdf3d8;color:#8a6100}

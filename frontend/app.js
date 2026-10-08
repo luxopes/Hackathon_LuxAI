@@ -297,6 +297,19 @@ function relative(stamp) {
 }
 
 /* ---------- tasks table ---------- */
+// Stavy úloh na marketplace: RUNNING, DELIVERED, FAILED, PAID, REFUNDED.
+const TASK_BADGE = {
+  PAID: { label: "Paid", cls: "completed" },
+  REFUNDED: { label: "Refunded", cls: "refunded" },
+  FAILED: { label: "Failed", cls: "failed" },
+  RUNNING: { label: "Running", cls: "running" },
+  DELIVERED: { label: "Verifying", cls: "running" },
+};
+
+function taskBadge(state) {
+  return TASK_BADGE[state] || { label: state ? state.charAt(0) + state.slice(1).toLowerCase() : "Pending", cls: "running" };
+}
+
 function renderTasks(payments) {
   const body = $("tasks-table").querySelector("tbody");
   body.replaceChildren();
@@ -311,7 +324,7 @@ function renderTasks(payments) {
     row.innerHTML = `<td><div class="task-cell"><span class="agent-icon ${meta.tile}">${ICON[payment.capability] || ICON.agent}</span>
         <span><b>${esc(meta.label)}</b><small>${esc(payment.job)}</small></span></div></td>
       <td><span class="avatars"><span class="avatar">${esc(payment.seller.slice(0, 2).toUpperCase())}</span></span></td>
-      <td><span class="badge ${payment.state === "PAID" ? "completed" : "failed"}">${payment.state === "PAID" ? "Paid" : "Refunded"}</span></td>
+      <td><span class="badge ${taskBadge(payment.state).cls}">${esc(taskBadge(payment.state).label)}</span></td>
       <td>${usd(payment.amount)}</td>
       <td>${esc(relative(payment.stamp))}</td>
       <td><a class="text-button" href="../receipt/${esc(payment.id)}" target="_blank" rel="noopener">receipt →</a></td>`;
@@ -459,7 +472,7 @@ function renderActivity(tools) {
 }
 
 function renderSystem(st) {
-  $("sys-inline").textContent = `LuxAI Flash · ${st.currency} (${st.simulated_payments ? "simulated" : "?"}) · ${st.tool_count || 0} tool calls · ${st.payment_count || 0} receipts · structural checks only`;
+  $("sys-inline").textContent = "LuxAI 2026";
 }
 
 /* ---------- speech helpers for deliveries ---------- */

@@ -1,5 +1,43 @@
 # TODO
 
+## Hackathon status (2026-10-09, 02:15)
+
+**Payments (judging criterion #1)**
+
+- [x] Stripe test-mode card top-ups in USD: hosted Checkout page, `stripe-confirm`
+      credits the wallet exactly once, a `STRIPE_TOPUP` row lands in the ledger,
+      idempotency verified twice, the invariant still holds
+- [x] Console: "Pay by card (Stripe)" with USD presets, the return URL confirms
+      and cleans itself; the card page is real Stripe (sandbox), the coins it
+      buys are simulated and labelled as such everywhere
+- [x] Internal amounts read in both units (`7 Lux Coins (approx $0.35)` on
+      receipts and payments, `available N LC (approx $X)` in the console)
+- [x] The account budget clamps to the marketplace session cap (1–100 LC), so a
+      topped-up account can still run tasks (verified with a 150 LC account)
+
+**Agent-to-agent protocol (judging criterion #2)**
+
+- [x] Marketplace HTTP API with escrow, delivery verification, contract refunds,
+      signed receipts and the append-only hash-chained ledger (invariant holds)
+
+**Stability**
+
+- [x] The console state lock can no longer leak: a fixed hard hang during audits
+      (verified: the audit runs in about 12 s, repeats, and `/api/state` answers
+      throughout while CPU falls back to idle)
+
+**Remaining before the freeze (07:14)**
+
+- [ ] Record the 2-minute demo video (beats in `SPRINT.md`) and submit it with the codebase
+- [ ] Rehearse once on the recording browser: sign in, pay by card, auto demo, receipt
+- [ ] Rotate the hackathon keys after the event (Stripe, GitHub, Apify, ElevenLabs, LuxAI)
+
+**Known limitation (after the hackathon)**
+
+- One console workspace is shared by every account: the wallet session is global
+  while the account budget is per account. Single-account demos are unaffected;
+  per-account workspaces need the session to move into the account record.
+
 ## 1. Rewrite every other page in the agent-console design
 
 **Target design:** https://api.lux-ai.cz/hackathon01/web/ (the agent console).

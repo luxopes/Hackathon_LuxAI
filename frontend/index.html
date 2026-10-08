@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lux Coins · Agentic Economy · Live Agent Console</title>
+<link rel="stylesheet" href="style.css?v=6">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">
+    <span class="logo">LUX COINS</span>
+    <span class="sub">Agentic Economy · live agent console</span>
+    <span class="badge">SIMULATED PAYMENTS</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><label>Available</label><b id="stat-available">—</b></div>
+    <div class="stat"><label>In escrow</label><b id="stat-locked">—</b></div>
+    <div class="stat"><label>Budget</label><b id="stat-budget">—</b></div>
+  </div>
+  <div class="tx">
+    <label>Last movement</label>
+    <span id="tx-last">No transactions yet</span>
+  </div>
+  <div class="conn">
+    <span id="conn-dot" class="dot"></span>
+    <span id="conn-status">Connecting…</span>
+  </div>
+</header>
+<main>
+  <section id="chat-panel">
+    <div id="messages"></div>
+    <div id="composer">
+      <textarea id="input" rows="3" placeholder="Type a request… (Enter to send, Shift+Enter for a new line)" maxlength="1000"></textarea>
+      <div class="buttons">
+        <button id="btn-send" class="primary">Send</button>
+        <button id="btn-stop" hidden>Stop</button>
+        <button id="btn-auto" title="Runs a scripted end-to-end scenario: discovery, purchase, dispute, settlement — no further clicks needed">▶ Auto demo</button>
+        <button id="btn-catalog" title="Fetches the current offer catalog without purchasing">Catalog</button>
+        <button id="btn-new" class="danger" title="Discards the conversation history; wallets stay on the marketplace">New conversation</button>
+      </div>
+      <div id="status-line"></div>
+    </div>
+  </section>
+  <aside id="right-panel">
+    <nav class="tabs">
+      <button data-tab="tools" class="active">Tools <span id="cnt-tools">0</span></button>
+      <button data-tab="payments">Payments <span id="cnt-payments">0</span></button>
+      <button data-tab="system">System</button>
+    </nav>
+    <div id="tab-content"></div>
+  </aside>
+</main>
+<script src="app.js?v=6"></script>
+</body>
+</html>

@@ -57,11 +57,25 @@ one click.
 
 ## Frontend
 
+The reference web client lives in `../frontend/` and is served by the console
+service (`PROOFPAY_WEB_DIR`). It polls `GET /api/state?lite=1`, fetches the full
+state on revision changes and posts messages with `POST /api/chat`.
+
 See **`docs/API.md`**. A frontend is a simple poller: `GET /api/state?lite=1`
 every ~500 ms, a full `GET /api/state` whenever a revision changes, and
 `POST /api/chat` to send a message. The deployed console UI
 (`index.html`/`app.js`/`style.css` in `PROOFPAY_WEB_DIR`) is the reference
 client.
+
+## Run it
+
+From zero on a clean machine: **`docs/SETUP.md`** (LSL install, `aikit`, build,
+config, smoke test). The short version:
+
+```sh
+scripts/run-local.sh      # build + start everything on loopback
+scripts/stop-local.sh
+```
 
 ## Deploy
 

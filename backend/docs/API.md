@@ -40,8 +40,10 @@ await fetch("api/chat", {
 ```
 
 A complete working client (the console UI) is the reference implementation:
-`index.html` + `app.js` + `style.css` deployed next to the service
-(`PROOFPAY_WEB_DIR`, e.g. `/opt/proofpay-mvp/web/`).
+`frontend/index.html` + `frontend/app.js` + `frontend/style.css` in this
+repository. The console service serves that directory directly
+(`PROOFPAY_WEB_DIR`); in production it is deployed to e.g.
+`/opt/proofpay-mvp/web/`.
 
 ---
 

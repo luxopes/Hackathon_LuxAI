@@ -3,6 +3,9 @@
 Target: a single Linux host (x86_64) running all backend processes on loopback,
 with a reverse proxy (Caddy) exposing the console and the marketplace.
 
+For a local development run from zero (including the LSL installation) see
+`SETUP.md`; this document covers the server.
+
 ## 1. Prerequisites
 
 * Python 3.11+ (standard library only — no pip packages).

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
 <aside class="sidebar">
@@ -171,6 +171,17 @@
     </div>
   </form>
 </dialog>
-<script src="app.js?v=13"></script>
+<dialog id="delivery-dialog">
+  <div class="dialog-heading">
+    <div><span class="eyebrow">PURCHASED DELIVERY</span><h2 id="delivery-title">Delivery</h2></div>
+    <button class="icon-button" type="button" id="delivery-close" aria-label="Close dialog">×</button>
+  </div>
+  <div id="delivery-body"><p class="muted">Loading…</p></div>
+  <div class="dialog-footer">
+    <a class="button" id="delivery-receipt" href="#" target="_blank" rel="noopener">Open full receipt →</a>
+    <button class="primary" type="button" id="delivery-done">Close</button>
+  </div>
+</dialog>
+<script src="app.js?v=14"></script>
 </body>
 </html>

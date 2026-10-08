@@ -593,9 +593,24 @@ def receipt_page(data, job_id):
     reason_html = "".join(f"<li>{escape(r)}</li>" for r in reasons) or "<li>No discrepancies found.</li>"
     receipts = "".join(f"<li class='mono'>{escape(r)}</li>" for r in payment["verification_receipts"]) or "<li class='muted'>None</li>"
     artifact = (job.get("result") or {}).get("artifact") or {}
-    preview = (artifact.get("content") or artifact.get("summary") or "") if artifact else ""
-    delivery = (f"<pre class='preview'>{escape(preview[:1500])}</pre>"
-                + ("<p class='muted'>…truncated; the full artifact is in the raw JSON below.</p>" if len(preview) > 1500 else "")) if preview else "<p class='muted'>No text artifact for this job.</p>"
+    parts = []
+    if artifact.get("summary"):
+        parts.append(f"<p>{escape(artifact['summary'])}</p>")
+    if artifact.get("content"):
+        parts.append(f"<pre class='preview'>{escape(artifact['content'])}</pre>")
+    if artifact.get("ideas"):
+        parts.append("<ol>" + "".join(f"<li>{escape(idea)}</li>" for idea in artifact["ideas"]) + "</ol>")
+    if artifact.get("code"):
+        parts.append("<h3 style='font-size:13px;margin:14px 0 6px'>Python code</h3>"
+                     f"<pre class='preview'>{escape(artifact['code'])}</pre>")
+    if artifact.get("tests"):
+        parts.append("<h3 style='font-size:13px;margin:14px 0 6px'>Tests (syntax-checked, not executed)</h3>"
+                     f"<pre class='preview'>{escape(artifact['tests'])}</pre>")
+    if artifact.get("sources"):
+        parts.append("<h3 style='font-size:13px;margin:14px 0 6px'>Sources fetched</h3><ul>"
+                     + "".join(f"<li><a href='{escape(source['url'])}' target='_blank' rel='noopener noreferrer'>{escape(source['title'])}</a></li>"
+                               for source in artifact["sources"]) + "</ul>")
+    delivery = "".join(parts) if parts else "<p class='muted'>No text artifact for this job (cart audits deliver server-side execution receipts, listed above).</p>"
     reconciliation, invariant = data["reconciliation"], data["invariant"]
     raw = escape(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
     contract = escape(json.dumps(job["contract"], ensure_ascii=False, indent=2, sort_keys=True))

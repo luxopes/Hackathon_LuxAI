@@ -230,7 +230,7 @@ function renderTasks(payments) {
       <td><a class="text-button" href="../receipt/${esc(payment.id)}" target="_blank" rel="noopener">receipt →</a></td>`;
     row.addEventListener("click", (event) => {
       if (event.target.tagName === "A") return;
-      window.open("../receipt/" + payment.id, "_blank", "noopener");
+      openDelivery(payment.id);
     });
     if ((tasksFilter && payment.state !== tasksFilter) || !row.dataset.search.includes(searchTerm)) row.style.display = "none";
     body.append(row);
@@ -367,6 +367,146 @@ function renderActivity(tools) {
 
 function renderSystem(st) {
   $("sys-inline").textContent = `LuxAI Flash · ${st.currency} (${st.simulated_payments ? "simulated" : "?"}) · ${st.tool_count || 0} tool calls · ${st.payment_count || 0} receipts · structural checks only`;
+}
+
+/* ---------- purchased delivery dialog ---------- */
+function metaRow(label, value) {
+  const span = document.createElement("span");
+  span.innerHTML = esc(label) + " <b>" + esc(value) + "</b>";
+  return span;
+}
+
+function artifactBlocks(artifact) {
+  const blocks = [];
+  if (!artifact) return blocks;
+  const section = (title, content) => {
+    const wrap = document.createElement("div");
+    wrap.className = "delivery-section";
+    if (title) {
+      const head = document.createElement("h3");
+      head.textContent = title;
+      wrap.append(head);
+    }
+    wrap.append(content);
+    blocks.push(wrap);
+  };
+  if (artifact.summary) {
+    const text = document.createElement("div");
+    text.className = "delivery-text";
+    text.textContent = artifact.summary;
+    section("What was delivered", text);
+  }
+  if (artifact.content) {
+    const text = document.createElement("div");
+    text.className = "delivery-text";
+    text.textContent = artifact.content;
+    section(artifact.summary ? "Full text" : "What was delivered", text);
+  }
+  if (Array.isArray(artifact.ideas) && artifact.ideas.length) {
+    const list = document.createElement("ol");
+    for (const idea of artifact.ideas) {
+      const item = document.createElement("li");
+      item.textContent = idea;
+      list.append(item);
+    }
+    section("Ideas", list);
+  }
+  if (artifact.code) {
+    const pre = document.createElement("pre");
+    pre.textContent = artifact.code;
+    section("Python code", pre);
+  }
+  if (artifact.tests) {
+    const pre = document.createElement("pre");
+    pre.textContent = artifact.tests;
+    section("Tests (syntax-checked, not executed)", pre);
+  }
+  if (Array.isArray(artifact.sources) && artifact.sources.length) {
+    const list = document.createElement("ul");
+    for (const source of artifact.sources) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = source.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = source.title + " — " + source.url;
+      item.append(link);
+      list.append(item);
+    }
+    section("Sources fetched", list);
+  }
+  return blocks;
+}
+
+function renderDelivery(data) {
+  const job = data.job || {};
+  const artifact = (job.result || {}).artifact;
+  const verification = data.verification || {};
+  const capability = (job.contract || {}).capability;
+  const meta = CAPABILITY[capability] || { label: "Service" };
+  $("delivery-title").textContent = meta.label + " · " + (job.seller_id || "");
+  const body = $("delivery-body");
+  body.replaceChildren();
+
+  const info = document.createElement("div");
+  info.className = "delivery-meta";
+  info.append(metaRow("Amount", job.price + " LC"), metaRow("State", job.state),
+    metaRow("Seller", job.seller_id || ""), metaRow("Job", job.id || ""),
+    metaRow("When", job.created ? new Date(job.created * 1000).toLocaleString("en-GB") : "—"));
+
+  const verdict = document.createElement("div");
+  verdict.className = "delivery-section";
+  const badge = document.createElement("span");
+  badge.className = "delivery-badge" + (verification.valid_delivery ? "" : " warn");
+  badge.textContent = verification.valid_delivery ? "verified & paid" : "rejected — refunded";
+  verdict.append(badge);
+
+  body.append(info, verdict);
+  for (const block of artifactBlocks(artifact)) body.append(block);
+
+  const checks = verification.checks || [];
+  if (checks.length) {
+    const section = document.createElement("div");
+    section.className = "delivery-section";
+    const head = document.createElement("h3");
+    head.textContent = "Contracted cart checks";
+    const table = document.createElement("table");
+    table.className = "checks-table";
+    table.innerHTML = "<tr><th>Case</th><th>Expected</th><th>Observed</th><th>Result</th></tr>"
+      + checks.map((check) => `<tr><td>${esc(check.case_id)}</td><td>${check.expected_cents}</td>
+          <td>${check.observed_cents}</td><td>${check.passed ? "OK" : "DEFECT FOUND"}</td></tr>`).join("");
+    section.append(head, table);
+    body.append(section);
+  }
+  if (!artifact && !checks.length) {
+    const note = document.createElement("p");
+    note.className = "text-muted";
+    note.textContent = "No artifact stored for this task — open the full receipt for the ledger trail.";
+    body.append(note);
+  }
+  const scope = verification.scope;
+  if (scope) {
+    const note = document.createElement("p");
+    note.className = "text-muted";
+    note.style.marginTop = "10px";
+    note.textContent = scope;
+    body.append(note);
+  }
+}
+
+async function openDelivery(jobId) {
+  const dialog = $("delivery-dialog");
+  $("delivery-title").textContent = "Loading delivery…";
+  $("delivery-receipt").href = "../receipt/" + jobId;
+  $("delivery-body").innerHTML = '<p class="text-muted">Fetching the delivery from the public receipt…</p>';
+  dialog.showModal();
+  try {
+    const resp = await fetch("../api/receipt/" + encodeURIComponent(jobId));
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    renderDelivery(await resp.json());
+  } catch (error) {
+    $("delivery-body").innerHTML = '<p class="text-muted">Could not load this delivery (' + esc(error.message) + '). Open the full receipt instead.</p>';
+  }
 }
 
 /* ---------- task dialog ---------- */
@@ -531,6 +671,8 @@ $("btn-auto").addEventListener("click", startAutoDemo);
 $("btn-stop").addEventListener("click", stopTurn);
 $("btn-catalog").addEventListener("click", refreshCatalog);
 $("btn-new").addEventListener("click", newConversation);
+$("delivery-close").addEventListener("click", () => $("delivery-dialog").close());
+$("delivery-done").addEventListener("click", () => $("delivery-dialog").close());
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });

@@ -513,8 +513,11 @@ async function toggleRecording() {
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch {
-    status.textContent = "Microphone permission denied.";
+  } catch (error) {
+    const name = (error && error.name) || "Error";
+    status.textContent = name === "NotAllowedError"
+      ? "Microphone is blocked for this site. Allow it via the padlock icon in the address bar, then click Dictate again."
+      : "Microphone unavailable (" + name + ") — check the device and browser permissions.";
     return;
   }
   recordedChunks = [];

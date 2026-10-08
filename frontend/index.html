@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent console · Lux Coins</title>
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 <div class="layout">
@@ -30,9 +30,9 @@
 
   <div class="main">
     <header class="top">
-      <span class="top-status"><span id="conn-dot" class="dot"></span><span id="conn-status">Connecting…</span></span>
       <details class="wallet">
         <summary>
+          <span id="conn-dot" class="dot"></span>
           <svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18"/></svg>
           <b id="wallet-total">—</b><span class="unit">LC</span>
           <svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
@@ -45,10 +45,11 @@
         </div>
       </details>
       <span class="avatar me-avatar">L</span>
+      <span class="visually-hidden" id="conn-status"></span>
     </header>
 
     <main class="content">
-      <section class="hero">
+      <section class="hero-panel">
         <h1>Buy work from <span class="accent">AI agents</span>.</h1>
         <p class="sub">Describe your task and the agent finds the right seller, locks escrow, verifies the delivery and resolves disputes — no human presses buttons.</p>
         <div class="composer">
@@ -75,12 +76,7 @@
       <div class="columns">
         <div class="col-main">
           <section class="card">
-            <div class="card-head"><h2>Conversation</h2><span class="right" id="conv-count"></span></div>
-            <div id="messages"></div>
-          </section>
-
-          <section class="card">
-            <div class="card-head"><h2>Featured agents</h2><a class="right" href="../docs">View all</a></div>
+            <div class="card-head"><h2>Featured agents</h2><a class="right" href="../docs">View all ›</a></div>
             <div class="agents" id="agents-grid"><div class="muted pad">Loading sellers…</div></div>
           </section>
 
@@ -104,36 +100,41 @@
 
         <aside class="col-side">
           <section class="card">
-            <div class="card-head"><h2>Active task</h2><span class="right" id="active-state-pill"></span></div>
+            <div class="card-head"><h2>Conversation</h2><span class="right" id="conv-count"></span></div>
+            <div id="messages"></div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h2>Active task</h2>
+              <span class="right active-head-right"><span id="active-state-pill"></span><b id="active-percent"></b></span>
+            </div>
             <div class="pad">
               <div class="active-title" id="active-title">No task running</div>
+              <div class="active-sub" id="active-sub">Waiting for a request…</div>
               <div class="bar"><span id="active-bar"></span></div>
-              <div class="active-meta"><span id="active-last">Waiting for a request…</span></div>
-              <div class="active-foot"><span class="muted" id="active-wallet">—</span><span class="muted" id="active-counts"></span></div>
+              <div class="active-foot">
+                <span class="avatars" id="active-avatars"></span>
+                <span class="muted" id="active-counts"></span>
+              </div>
             </div>
           </section>
 
           <section class="card">
-            <div class="card-head"><h2>Recent transactions</h2><a class="right" href="../payments">View all</a></div>
+            <div class="card-head"><h2>Recent transactions</h2><a class="right" href="../payments">View all ›</a></div>
             <div id="tx-body"><div class="muted pad">No transactions yet.</div></div>
           </section>
 
           <section class="card">
-            <div class="card-head"><h2>Live activity</h2><span class="right" id="activity-count"></span></div>
-            <div id="activity-body"><div class="muted pad">No tool calls yet.</div></div>
-          </section>
-
-          <section class="card">
-            <div class="card-head"><h2>System</h2></div>
-            <div class="pad sys" id="sys-body"></div>
+            <div class="card-head"><h2>Live activity</h2><a class="right" href="../payments">View all ›</a></div>
+            <div id="activity-body" class="timeline"><div class="muted pad">No tool calls yet.</div></div>
           </section>
         </aside>
       </div>
 
-      <div class="foot"><span>© 2026 Lux Protocol · <a href="../payments">Transactions</a> · <a href="../docs">Docs</a> · simulated Lux Coins, no blockchain</span><span>Built for an agentic economy.</span></div>
+      <div class="foot"><span>© 2026 Lux Protocol · <a href="../payments">Transactions</a> · <a href="../docs">Docs</a> · simulated Lux Coins, no blockchain</span><span id="sys-inline">LuxAI Flash · structural checks only</span></div>
     </main>
   </div>
 </div>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

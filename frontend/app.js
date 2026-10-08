@@ -190,8 +190,11 @@ function renderAgents() {
     tile.className = "tile " + capability;
     tile.innerHTML = CAPABILITY_ICON[capability] || CAPABILITY_ICON["short-research"];
     const head = document.createElement("div");
-    head.innerHTML = `<div class="name">${esc(seller.name)}</div>
+    head.className = "head";
+    const text = document.createElement("div");
+    text.innerHTML = `<div class="name">${esc(seller.name)}</div>
       <div class="state"><span class="dot ok"></span>Online</div>`;
+    head.append(tile, text);
     const desc = document.createElement("div");
     desc.className = "desc";
     desc.textContent = seller.desc || CAPABILITY_DESC[capability] || "";
@@ -216,7 +219,7 @@ function renderAgents() {
       $("input").focus();
       showNotice(`Task drafted for ${seller.name} — press Send.`);
     });
-    card.append(tile, head, desc, tags, price, hire);
+    card.append(head, desc, tags, price, hire);
     grid.append(card);
   }
 }
@@ -304,8 +307,8 @@ function renderTransactions(payments) {
         : '<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>'}</span>
       <span class="tx-main"><span class="tx-title">${incoming ? "Refund from" : "Payment to"} ${esc(payment.seller)}</span>
         <span class="tx-sub">${esc(payment.service || payment.capability || "service")} · ${esc(payment.job)}</span></span>
-      <span class="tx-amount ${incoming ? "down" : "up"}">${incoming ? "+" : "−"}${payment.amount} LC</span>
-      <span class="tx-time">${esc(formatWhen(payment.stamp))}</span>`;
+      <span class="tx-right"><span class="tx-amount ${incoming ? "down" : "up"}">${incoming ? "+" : "−"}${payment.amount} LC</span>
+        <span class="tx-time">${esc(formatWhen(payment.stamp))}</span></span>`;
     row.addEventListener("click", () => window.open("../receipt/" + payment.id, "_blank", "noopener"));
     row.style.cursor = "pointer";
     box.append(row);
@@ -350,17 +353,42 @@ function renderActivity(tools, force) {
 }
 
 /* ---------- active task / wallet / system ---------- */
+const AVATAR_TINTS = ["green", "purple", "blue"];
 function renderActive(st) {
   const busy = st.busy;
+  const payments = st.payments || [];
+  const percent = busy ? 42 : payments.length ? 100 : 0;
   $("active-state-pill").innerHTML = busy ? '<span class="pill blue">In progress</span>' : '<span class="pill ok">Ready</span>';
-  $("active-title").textContent = busy ? (st.status || "Working…") : (st.payments && st.payments.length ? "Last task settled" : "No task running");
+  $("active-percent").textContent = percent + "%";
+  $("active-title").textContent = busy ? "Working on your request" : (payments.length ? "Last task settled" : "No task running");
+  $("active-sub").textContent = (st.status || "Waiting for a request…");
   const bar = $("active-bar");
-  bar.style.width = busy ? "62%" : "100%";
+  bar.style.width = percent + "%";
   bar.style.background = busy ? "var(--amber)" : "var(--green)";
-  const lastTool = st.tools && st.tools.length ? st.tools[st.tools.length - 1] : null;
-  $("active-last").textContent = lastTool ? "Last call: " + lastTool.summary.replace(/ · /g, " · ") : "Waiting for a request…";
-  $("active-wallet").textContent = st.wallet ? `available ${st.wallet.available} · locked ${st.wallet.locked} LC` : "wallet created on first purchase";
-  $("active-counts").textContent = `${st.tool_count || 0} calls · ${st.payment_count || 0} payments`;
+  const sellers = [...new Set(payments.map((entry) => (entry.summary || "").split(" · ")[2]).filter(Boolean))].slice(-3);
+  const avatars = $("active-avatars");
+  avatars.replaceChildren();
+  if (sellers.length) {
+    sellers.forEach((seller, index) => {
+      const mini = document.createElement("span");
+      mini.className = "mini " + AVATAR_TINTS[index % AVATAR_TINTS.length];
+      mini.textContent = seller.slice(0, 2).toUpperCase();
+      mini.title = seller;
+      avatars.append(mini);
+    });
+    const note = document.createElement("span");
+    note.className = "muted";
+    note.style.cssText = "font-size:12px;align-self:center;margin-left:4px";
+    note.textContent = sellers.length + " seller" + (sellers.length > 1 ? "s" : "") + " working";
+    avatars.append(note);
+  } else {
+    const note = document.createElement("span");
+    note.className = "muted";
+    note.style.fontSize = "12px";
+    note.textContent = "No sellers engaged yet";
+    avatars.append(note);
+  }
+  $("active-counts").textContent = `${st.tool_count || 0} calls · ${payments.length} payments`;
 }
 
 function renderWallet(st) {
@@ -373,17 +401,10 @@ function renderWallet(st) {
 }
 
 function renderSystem(st) {
-  const rows = [
-    ["Currency", st.currency],
-    ["Payments", st.simulated_payments ? "SIMULATED" : "?"],
-    ["Model", st.ai_model === "flash" ? "LuxAI Flash" : st.ai_model],
-    ["Messages", String(st.messages ? st.messages.length : 0)],
-    ["Tool calls", String(st.tool_count || 0)],
-    ["Payment receipts", String(st.payment_count || 0)],
-    ["Last refresh", new Date(st.time * 1000).toLocaleTimeString("en-GB")],
-  ];
-  $("sys-body").innerHTML = rows.map(([key, value]) => `<div><label>${esc(key)}</label><b>${esc(value)}</b></div>`).join("")
-    + '<span class="note">Simulated Lux Coins in a central SQLite ledger; structural delivery checks only. Not financial advice.</span>';
+  const target = $("sys-inline");
+  if (!target) return;
+  const model = st.ai_model === "flash" ? "LuxAI Flash" : st.ai_model;
+  target.textContent = `${model} · ${st.currency} (${st.simulated_payments ? "simulated" : "?"}) · ${st.tool_count || 0} tool calls · ${st.payment_count || 0} receipts`;
 }
 
 /* ---------- actions ---------- */

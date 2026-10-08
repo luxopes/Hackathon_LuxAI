@@ -128,15 +128,23 @@ function token_of(request):
 end
 
 # Peněženka pro platbu kartou: použije stávající session, jinak založí novou.
-function ensure_session():
+function ensure_session(account):
     call lock()
     current = chat["session_id"]
     call unlock()
     if current != "":
         return current
     end
+    # Peněženka startuje s budgetem účtu (marketplace povoluje 1-100).
+    budget = user_budget(account)
+    if budget > 100:
+        budget = 100
+    end
+    if budget < 1:
+        budget = Int(config.get("budget", 30))
+    end
     created = buyer.api(config, "POST", "/api/sessions", {"title": "Wallet top-up",
-        "budget": Int(config.get("budget", 30)), "fixture": config.get("fixture", "buggy"), "service": "auto"})
+        "budget": budget, "fixture": config.get("fixture", "buggy"), "service": "auto"})
     call lock()
     chat["session_id"] = created["id"]
     state["wallet"] = created["wallet"]
@@ -147,8 +155,15 @@ end
 
 function credit_card_topup(who, session_id, outcome):
     # Zapíše připsané Lux Coins do účtu i stavu; volat jen když Stripe potvrdil platbu.
+    # HTTP volání záměrně mimo zámek: pomalá odpověď nesmí zablokovat ostatní vlákna.
+    refreshed = buyer.api(config, "GET", "/api/sessions/" + session_id, None)
     call lock()
-    state["wallet"] = buyer.api(config, "GET", "/api/sessions/" + session_id, None)["wallet"]
+    try:
+        state["wallet"] = refreshed["wallet"]
+        state["budget"] = refreshed["budget"]
+    else:
+        call time.time()
+    end
     call unlock()
     for index in rang(len(users["list"])):
         if String(users["list"][index].get("username", "")) == who:
@@ -158,7 +173,11 @@ function credit_card_topup(who, session_id, outcome):
     end
     call users_save()
     call lock()
-    call add_notification("info", "Card payment confirmed (Stripe test): +" + String(outcome["lux_coins"]) + " Lux Coins", "")
+    try:
+        call add_notification("info", "Card payment confirmed (Stripe test): +" + String(outcome["lux_coins"]) + " Lux Coins", "")
+    else:
+        call time.time()
+    end
     call unlock()
 end
 
@@ -343,51 +362,57 @@ function progress(event):
         prepared = payment_entry(event["data"])
     end
     call lock()
-    action = event["action"]
-    data = event["data"]
-    if action == "TOOL_STARTED" or action == "TOOL_FINISHED":
-        call upsert(state["tools"], prepared)
-        state["audit_revision"] += 1
-    elif action == "PAYMENT_UPDATED":
-        call upsert(state["payments"], prepared)
-        state["audit_revision"] += 1
-    elif action == "STREAM_START":
-        call append_message("Agent", data["label"] + chr(10))
-        streams[data["id"]] = len(state["messages"]) - 1
-    elif action == "STREAM_DELTA" and data["id"] in streams:
-        index = streams[data["id"]]
-        state["messages"][index]["content"] += data["text"]
-        state["messages_revision"] += 1
-    elif action == "STREAM_COMMIT" and data["id"] in streams:
-        state["messages"][streams[data["id"]]]["content"] = data["text"]
-        state["messages_revision"] += 1
-    elif action == "STREAM_DISCARD" and data["id"] in streams:
-        state["messages"][streams[data["id"]]]["content"] = "Delivery preview was not accepted: the seller did not meet the contract. Refund follows."
-        state["messages_revision"] += 1
-    elif action == "WALLET_UPDATED" or action == "FINISHED" or action == "STOPPED":
-        wallet = data
-        if action != "WALLET_UPDATED":
-            wallet = data["wallet"]
+    try:
+        action = event["action"]
+        data = event["data"]
+        if action == "TOOL_STARTED" or action == "TOOL_FINISHED":
+            call upsert(state["tools"], prepared)
+            state["audit_revision"] += 1
+        elif action == "PAYMENT_UPDATED":
+            call upsert(state["payments"], prepared)
+            state["audit_revision"] += 1
+        elif action == "STREAM_START":
+            call append_message("Agent", data["label"] + chr(10))
+            streams[data["id"]] = len(state["messages"]) - 1
+        elif action == "STREAM_DELTA" and data["id"] in streams:
+            index = streams[data["id"]]
+            state["messages"][index]["content"] += data["text"]
+            state["messages_revision"] += 1
+        elif action == "STREAM_COMMIT" and data["id"] in streams:
+            state["messages"][streams[data["id"]]]["content"] = data["text"]
+            state["messages_revision"] += 1
+        elif action == "STREAM_DISCARD" and data["id"] in streams:
+            state["messages"][streams[data["id"]]]["content"] = "Delivery preview was not accepted: the seller did not meet the contract. Refund follows."
+            state["messages_revision"] += 1
+        elif action == "WALLET_UPDATED" or action == "FINISHED" or action == "STOPPED":
+            wallet = data
+            if action != "WALLET_UPDATED":
+                wallet = data["wallet"]
+            end
+            state["wallet"] = json.decode(json.encode(wallet))
+        elif action == "ESCROW_LOCKED":
+            state["wallet"]["available"] -= data["amount"]
+            state["wallet"]["locked"] += data["amount"]
+        elif action == "REFUND_RECEIVED":
+            state["wallet"]["available"] += data["amount"]
+            state["wallet"]["locked"] -= data["amount"]
+            call append_message("Agent", "Delivery did not meet the contract. " + String(data["amount"]) + " Lux Coins refunded; selecting another seller.")
+            call add_notification("refund", String(data["amount"]) + " Lux Coins refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
+        elif action == "PAYMENT_RELEASED":
+            state["wallet"]["locked"] -= data["amount"]
+            call add_notification("paid", String(data["amount"]) + " Lux Coins paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
+        elif action == "SESSION_CREATED":
+            state["budget"] = data["budget"]
+        elif action == "CHAT_DECISION":
+            state["status"] = data["message"]
         end
-        state["wallet"] = json.decode(json.encode(wallet))
-    elif action == "ESCROW_LOCKED":
-        state["wallet"]["available"] -= data["amount"]
-        state["wallet"]["locked"] += data["amount"]
-    elif action == "REFUND_RECEIVED":
-        state["wallet"]["available"] += data["amount"]
-        state["wallet"]["locked"] -= data["amount"]
-        call append_message("Agent", "Delivery did not meet the contract. " + String(data["amount"]) + " Lux Coins refunded; selecting another seller.")
-        call add_notification("refund", String(data["amount"]) + " Lux Coins refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
-    elif action == "PAYMENT_RELEASED":
-        state["wallet"]["locked"] -= data["amount"]
-        call add_notification("paid", String(data["amount"]) + " Lux Coins paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
-    elif action == "SESSION_CREATED":
-        state["budget"] = data["budget"]
-    elif action == "CHAT_DECISION":
-        state["status"] = data["message"]
-    end
-    if action[0:7] != "STREAM_" and action not in ["TOOL_STARTED", "TOOL_FINISHED", "PAYMENT_UPDATED"]:
-        state["status"] = status_line(event)
+        if action[0:7] != "STREAM_" and action not in ["TOOL_STARTED", "TOOL_FINISHED", "PAYMENT_UPDATED"]:
+            state["status"] = status_line(event)
+        end
+    else:
+        # Aktualizace stavu nesmí nikdy nechat zámek zamčený.
+        state["status"] = "Internal update skipped (state unchanged)"
+        state["audit_revision"] += 1
     end
     call unlock()
 end
@@ -401,19 +426,27 @@ function worker():
                 text += chr(10) + offer["service_name"] + " · " + offer["name"] + " · " + String(offer["price"]) + " Lux Coins · " + offer["delivery"]
             end
             call lock()
+            try:
             call append_message("Agent", text)
             call add_notification("info", "Catalog refreshed: " + String(len(catalog["offers"])) + " active offers", "")
             state["status"] = "Catalog refreshed"
             state["busy"] = False
             call trim_state()
+            else:
+                state["status"] = "Catalog refresh finished with a partial state update"
+            end
             call unlock()
         else:
             turn_config = json.decode(json.encode(config))
             if work["budget"] > 0:
                 turn_config["budget"] = work["budget"]
+                if turn_config["budget"] > 100:
+                    turn_config["budget"] = 100
+                end
             end
             report = agent.turn(turn_config, chat, work["prompt"], progress, cancel_requested)
             call lock()
+            try:
             if state["messages"][len(state["messages"]) - 1]["content"] != report["reply"]:
                 call append_message("Agent", report["reply"])
             end
@@ -423,15 +456,23 @@ function worker():
             state["status"] = "Ready · send another message"
             state["busy"] = False
             call trim_state()
+            else:
+                state["status"] = "Turn finished with a partial state update"
+            end
             call unlock()
         end
     else:
         # Syrové chyby API nevypisujeme kvůli možným citlivým údajům.
         call lock()
-        call append_message("Agent", "The request could not be completed. Check the connection and try again. If a purchase was already in progress, its state is on the marketplace.")
-        call add_notification("error", "A task could not be completed — nothing was paid", "")
-        state["status"] = "Connection or agent-decision error"
-        state["busy"] = False
+        try:
+            call append_message("Agent", "The request could not be completed. Check the connection and try again. If a purchase was already in progress, its state is on the marketplace.")
+            call add_notification("error", "A task could not be completed — nothing was paid", "")
+            state["status"] = "Connection or agent-decision error"
+            state["busy"] = False
+        else:
+            state["status"] = "Task failed; nothing was paid"
+            state["busy"] = False
+        end
         call unlock()
     end
     call atomic_xchg(flags, 1, 1)
@@ -733,7 +774,7 @@ function route(client, request):
                 call send_error_json(client, 400, "card amount must be a whole number of US dollars from 1 to 25")
                 return
             end
-            session_id = ensure_session()
+            session_id = ensure_session(who)
             if target == "/api/topup/stripe/sandbox":
                 try:
                     payment = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-sandbox-pay", {"amount_usd": amount_usd})
@@ -801,6 +842,7 @@ function route(client, request):
                     wallet = topped["wallet"]
                     call lock()
                     state["wallet"] = wallet
+                    state["budget"] = topped["budget"]
                     call unlock()
                 end
             end

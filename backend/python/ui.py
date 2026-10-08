@@ -167,6 +167,20 @@ def _iso(stamp):
     return datetime.fromtimestamp(stamp, timezone.utc).isoformat()
 
 
+FAVICON_SVG = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lux" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#9db9ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#17202b"/>
+  <rect x="2" y="2" width="60" height="60" rx="13" fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="2"/>
+  <path d="M32 5 61 57H42L32 38 22 57H3Z" fill="url(#lux)"/>
+</svg>
+'''
+
+
 def _stamp(value):
     return escape(str(value))
 
@@ -215,6 +229,7 @@ def shell(base, active, crumbs, content, search_hint="Search by job ID, transact
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(crumbs[-1][0])} · USD</title>
+<link rel="icon" type="image/svg+xml" href="{base}assets/favicon.svg">
 <link rel="stylesheet" href="{base}assets/site.css">
 </head><body>
 <div class="layout">

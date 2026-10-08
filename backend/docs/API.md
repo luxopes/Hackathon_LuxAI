@@ -7,8 +7,8 @@ for direct integrations (and for the public overview page).
 
 | Service | Default address | Public example | Purpose |
 |---|---|---|---|
-| Agent console (LSL) | `http://127.0.0.1:3069` | `https://api.lux-ai.cz/hackathon01/web/` | Chat agent, tool-call feed, wallet/transactions, static frontend |
-| Marketplace (Python) | `http://127.0.0.1:3070` | `https://api.lux-ai.cz/hackathon01/` | Wallets, escrow, offers, jobs, ledger, verification |
+| Agent console (LSL) | `http://127.0.0.1:3069` | `https://hackathon.lux-ai.cz/web/` | Chat agent, tool-call feed, wallet/transactions, static frontend |
+| Marketplace (Python) | `http://127.0.0.1:3070` | `https://hackathon.lux-ai.cz/` | Wallets, escrow, offers, jobs, ledger, verification |
 
 **Same-origin rule.** The services send no CORS headers. Serve the frontend from
 `PROOFPAY_WEB_DIR` (the console service serves it at `/`) or reverse-proxy the
@@ -173,7 +173,7 @@ new wallet with the configured budget.
 
 ## 4. Marketplace API reference
 
-Base URL example: `https://api.lux-ai.cz/hackathon01` (or `http://127.0.0.1:3070`).
+Base URL example: `https://hackathon.lux-ai.cz` (or `http://127.0.0.1:3070`). The older path-based URLs on `api.lux-ai.cz/hackathon01` keep working.
 
 ### Public endpoints (no token)
 

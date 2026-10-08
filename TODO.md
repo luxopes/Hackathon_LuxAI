@@ -51,7 +51,7 @@
 
 ## 1. Rewrite every other page in the agent-console design
 
-**Target design:** https://api.lux-ai.cz/hackathon01/web/ (the agent console).
+**Target design:** https://hackathon.lux-ai.cz/web/ (the agent console).
 Everything else should look like the same product.
 
 **Design reference (source of truth):** `frontend/index.html` + `frontend/style.css`

@@ -48,8 +48,8 @@ class Market:
         # Podpisový klíč pro doklady (Ed25519); bez něj se doklady jen nepodepisují.
         stripe_file = config.get("stripe_key_file", "")
         self.stripe_key = Path(stripe_file).read_text().strip() if stripe_file and Path(stripe_file).is_file() else ""
-        self.stripe_success_url = config.get("stripe_success_url", "https://api.lux-ai.cz/hackathon01/web/?stripe=ok")
-        self.stripe_cancel_url = config.get("stripe_cancel_url", "https://api.lux-ai.cz/hackathon01/web/?stripe=cancel")
+        self.stripe_success_url = config.get("stripe_success_url", "https://hackathon.lux-ai.cz/web/?stripe=ok")
+        self.stripe_cancel_url = config.get("stripe_cancel_url", "https://hackathon.lux-ai.cz/web/?stripe=cancel")
         key_file = config.get("receipt_signing_key_file", "")
         self.signing_key_file = key_file
         self.signing_key_id = ""
@@ -958,6 +958,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {"keys": keys})
             if path == "/assets/site.css":
                 return self.send(200, ui.SITE_CSS, "text/css; charset=utf-8")
+            if path == "/assets/favicon.svg":
+                return self.send(200, ui.FAVICON_SVG, "image/svg+xml; charset=utf-8")
             if path == "/api/dashboard":
                 return self.send(200, market.dashboard())
             if path == "/api/offers":

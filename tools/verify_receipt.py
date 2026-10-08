@@ -7,7 +7,7 @@ public key published by the marketplace (or the one embedded in the receipt).
 
 Usage:
   verify_receipt.py receipt.json
-  verify_receipt.py --url https://api.lux-ai.cz/hackathon01/api/receipt/job-…
+  verify_receipt.py --url https://hackathon.lux-ai.cz/api/receipt/job-…
   verify_receipt.py receipt.json --keys proofpay-keys.json
 
 Exit code 0 means: the receipt is internally consistent and correctly signed

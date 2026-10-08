@@ -168,6 +168,15 @@ function ensure_session(account):
     current = account_chat(account)["session_id"]
     call unlock()
     if current != "":
+        call lock()
+        existing = buyer.api(config, "GET", "/api/sessions/" + current, None)
+        state["wallet"] = existing["wallet"]
+        state["budget"] = existing["budget"]
+        if account != "":
+            account_wallets[account] = existing["wallet"]
+            account_budgets[account] = existing["budget"]
+        end
+        call unlock()
         return current
     end
     # Peněženka startuje s budgetem účtu (marketplace povoluje 1-100).
@@ -184,6 +193,10 @@ function ensure_session(account):
     account_chat(account)["session_id"] = created["id"]
     state["wallet"] = created["wallet"]
     state["budget"] = created["budget"]
+    if account != "":
+        account_wallets[account] = created["wallet"]
+        account_budgets[account] = created["budget"]
+    end
     call unlock()
     return created["id"]
 end

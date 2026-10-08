@@ -30,6 +30,39 @@ work = {"kind": "", "prompt": "", "budget": 0}
 # Původní zadání uživatele; drží se přes dotazy v popupu, aby se dalo pokračovat.
 root_task = {"value": ""}
 streams = {}
+# Každý účet má vlastní konverzaci (session/history) i vlastní zachycené
+# peněženky; zobrazený stav se filtruje podle vlastníka záznamu.
+chats = {}
+root_tasks = {}
+account_wallets = {}
+account_budgets = {}
+worker_owner = {"value": ""}
+
+function account_chat(who):
+    if who == "":
+        return chat
+    end
+    if who not in chats:
+        chats[who] = agent.conversation()
+    end
+    return chats[who]
+end
+
+function account_root_task(who):
+    if who == "":
+        return root_task
+    end
+    if who not in root_tasks:
+        root_tasks[who] = {"value": ""}
+    end
+    return root_tasks[who]
+end
+
+function owned(entry, who):
+    # Záznamy bez vlastníka (úvodní zpráva) vidí každý.
+    owner = String(entry.get("who", ""))
+    return owner == "" or owner == who
+end
 guard = {"last_chat": 0.0}
 # Skalární přiřazení uvnitř funkce stíní globál; držák to obchází.
 budget_holder = {"value": 0}
@@ -132,7 +165,7 @@ end
 # Peněženka pro platbu kartou: použije stávající session, jinak založí novou.
 function ensure_session(account):
     call lock()
-    current = chat["session_id"]
+    current = account_chat(account)["session_id"]
     call unlock()
     if current != "":
         return current
@@ -148,7 +181,7 @@ function ensure_session(account):
     created = buyer.api(config, "POST", "/api/sessions", {"title": "Wallet top-up",
         "budget": budget, "fixture": config.get("fixture", "buggy"), "service": "auto"})
     call lock()
-    chat["session_id"] = created["id"]
+    account_chat(account)["session_id"] = created["id"]
     state["wallet"] = created["wallet"]
     state["budget"] = created["budget"]
     call unlock()
@@ -163,6 +196,10 @@ function credit_card_topup(who, session_id, outcome):
     try:
         state["wallet"] = refreshed["wallet"]
         state["budget"] = refreshed["budget"]
+        if who != "":
+            account_wallets[who] = refreshed["wallet"]
+            account_budgets[who] = refreshed["budget"]
+        end
     else:
         call time.time()
     end
@@ -216,18 +253,18 @@ function unlock():
 end
 
 # Notifikace pro zvonek: platby, refundace a dokončené tahy. Vždy pod zámkem.
-function add_notification(kind, text, job_id):
+function add_notification(kind, text, job_id, who=""):
     state["notification_seq"] += 1
     state["notifications"].append({"id": "n-" + String(state["notification_seq"]), "kind": kind,
-        "text": text, "job_id": job_id, "time": time.time()})
+        "text": text, "job_id": job_id, "who": who, "time": time.time()})
     if len(state["notifications"]) > 20:
         state["notifications"] = state["notifications"][len(state["notifications"]) - 20:]
     end
     state["notifications_revision"] += 1
 end
 
-function append_message(role, text):
-    state["messages"].append({"role": role, "content": text})
+function append_message(role, text, who=""):
+    state["messages"].append({"role": role, "content": text, "who": who})
     state["messages_revision"] += 1
 end
 
@@ -362,11 +399,15 @@ function cancel_requested():
 end
 
 function progress(event):
+    owner = worker_owner["value"]
     prepared = None
     if event["action"] == "TOOL_STARTED" or event["action"] == "TOOL_FINISHED":
         prepared = tool_entry(event["data"])
     elif event["action"] == "PAYMENT_UPDATED":
         prepared = payment_entry(event["data"])
+    end
+    if prepared != None:
+        prepared["who"] = owner
     end
     call lock()
     try:
@@ -378,19 +419,6 @@ function progress(event):
         elif action == "PAYMENT_UPDATED":
             call upsert(state["payments"], prepared)
             state["audit_revision"] += 1
-        elif action == "STREAM_START":
-            call append_message("Agent", data["label"] + chr(10))
-            streams[data["id"]] = len(state["messages"]) - 1
-        elif action == "STREAM_DELTA" and data["id"] in streams:
-            index = streams[data["id"]]
-            state["messages"][index]["content"] += data["text"]
-            state["messages_revision"] += 1
-        elif action == "STREAM_COMMIT" and data["id"] in streams:
-            state["messages"][streams[data["id"]]]["content"] = data["text"]
-            state["messages_revision"] += 1
-        elif action == "STREAM_DISCARD" and data["id"] in streams:
-            state["messages"][streams[data["id"]]]["content"] = "Delivery preview was not accepted: the seller did not meet the contract. Refund follows."
-            state["messages_revision"] += 1
         elif action == "WALLET_UPDATED" or action == "FINISHED" or action == "STOPPED":
             wallet = data
             if action != "WALLET_UPDATED":
@@ -403,11 +431,11 @@ function progress(event):
         elif action == "REFUND_RECEIVED":
             state["wallet"]["available"] += data["amount"]
             state["wallet"]["locked"] -= data["amount"]
-            call append_message("Agent", "Delivery did not meet the contract. " + usd(data["amount"]) + " refunded; selecting another seller.")
-            call add_notification("refund", usd(data["amount"]) + " refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
+            call append_message("Agent", "Delivery did not meet the contract. " + usd(data["amount"]) + " refunded; selecting another seller.", owner)
+            call add_notification("refund", usd(data["amount"]) + " refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""), owner)
         elif action == "PAYMENT_RELEASED":
             state["wallet"]["locked"] -= data["amount"]
-            call add_notification("paid", usd(data["amount"]) + " paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
+            call add_notification("paid", usd(data["amount"]) + " paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""), owner)
         elif action == "SESSION_CREATED":
             state["budget"] = data["budget"]
         elif action == "CHAT_DECISION":
@@ -415,6 +443,12 @@ function progress(event):
         end
         if action[0:7] != "STREAM_" and action not in ["TOOL_STARTED", "TOOL_FINISHED", "PAYMENT_UPDATED"]:
             state["status"] = status_line(event)
+        end
+        if owner != "":
+            account_wallets[owner] = state["wallet"]
+            if state["budget"] != None:
+                account_budgets[owner] = state["budget"]
+            end
         end
     else:
         # Aktualizace stavu nesmí nikdy nechat zámek zamčený.
@@ -434,8 +468,8 @@ function worker():
             end
             call lock()
             try:
-            call append_message("Agent", text)
-            call add_notification("info", "Catalog refreshed: " + String(len(catalog["offers"])) + " active offers", "")
+            call append_message("Agent", text, worker_owner["value"])
+            call add_notification("info", "Catalog refreshed: " + String(len(catalog["offers"])) + " active offers", "", worker_owner["value"])
             state["status"] = "Catalog refreshed"
             state["busy"] = False
             call trim_state()
@@ -451,20 +485,20 @@ function worker():
                     turn_config["budget"] = 100
                 end
             end
-            report = agent.turn(turn_config, chat, work["prompt"], progress, cancel_requested)
+            report = agent.turn(turn_config, account_chat(worker_owner["value"]), work["prompt"], progress, cancel_requested)
             call lock()
             try:
             if state["messages"][len(state["messages"]) - 1]["content"] != report["reply"]:
-                call append_message("Agent", report["reply"])
+                call append_message("Agent", report["reply"], worker_owner["value"])
             end
             # Agent se zastavil jen proto, že mu chybí vstup, který má jedině uživatel.
             if report.get("decision", "") == "needs_input":
-                task = root_task["value"]
+                task = account_root_task(worker_owner["value"])["value"]
                 if task == "":
                     task = work["prompt"]
                 end
-                state["question"] = {"id": "q-" + String(chat["turn"]), "text": report["reply"],
-                    "options": report.get("options", []), "task": task, "time": time.time()}
+                state["question"] = {"id": "q-" + String(account_chat(worker_owner["value"])["turn"]), "text": report["reply"],
+                    "options": report.get("options", []), "task": task, "who": worker_owner["value"], "time": time.time()}
                 state["status"] = "Waiting for your answer"
                 state["audit_revision"] += 1
             else:
@@ -488,8 +522,8 @@ function worker():
         # Syrové chyby API nevypisujeme kvůli možným citlivým údajům.
         call lock()
         try:
-            call append_message("Agent", "The request could not be completed. Check the connection and try again. If a purchase was already in progress, its state is on the marketplace.")
-            call add_notification("error", "A task could not be completed — nothing was paid", "")
+            call append_message("Agent", "The request could not be completed. Check the connection and try again. If a purchase was already in progress, its state is on the marketplace.", worker_owner["value"])
+            call add_notification("error", "A task could not be completed — nothing was paid", "", worker_owner["value"])
             state["status"] = "Connection or agent-decision error"
             state["busy"] = False
         else:
@@ -503,17 +537,18 @@ function worker():
     call atomic_xchg(running, 0, 0)
 end
 
-function start(kind, prompt):
+function start(kind, prompt, owner=""):
     call atomic_xchg(flags, 1, 0)
     call atomic_xchg(flags, 2, 0)
     work["kind"] = kind
     work["prompt"] = prompt
     work["budget"] = budget_holder["value"]
+    worker_owner["value"] = owner
     call lock()
     state["busy"] = True
     state["status"] = "Fetching the current offers…"
     if kind == "turn":
-        call append_message("You", prompt)
+        call append_message("You", prompt, owner)
     end
     call unlock()
     unsafe:
@@ -534,7 +569,7 @@ function busy_now():
     return atomic_add(running, 0, 0) != 0
 end
 
-function snapshot(lite=False):
+function snapshot(lite=False, who=""):
     # Lite režim posílá jen peněženku, stav a revize; plná data (zprávy,
     # nástroje, platby) se přenášejí jen při změně revize. Šetří hlavní
     # vlákno i síť při pollingu každých 500 ms.
@@ -545,28 +580,60 @@ function snapshot(lite=False):
     notifications = []
     if not lite:
         for message in state["messages"]:
-            messages.append({"role": message["role"], "content": message["content"]})
+            if owned(message, who):
+                messages.append({"role": message["role"], "content": message["content"]})
+            end
         end
         for entry in state["tools"]:
-            tools.append(entry)
+            if owned(entry, who):
+                tools.append(entry)
+            end
         end
         for entry in state["payments"]:
-            payments.append(entry)
+            if owned(entry, who):
+                payments.append(entry)
+            end
         end
         for entry in state["notifications"]:
-            notifications.append(entry)
+            if owned(entry, who):
+                notifications.append(entry)
+            end
         end
     end
     wallet = None
-    if state["wallet"] != None:
-        wallet = {"available": state["wallet"]["available"], "locked": state["wallet"]["locked"]}
+    active = state["wallet"]
+    if who in account_wallets:
+        active = account_wallets[who]
+    else:
+        active = None
+    end
+    if who == "" and worker_owner["value"] == "":
+        active = state["wallet"]
+    end
+    if active != None:
+        wallet = {"available": active["available"], "locked": active["locked"]}
+    end
+    budget = state["budget"]
+    if who in account_budgets:
+        budget = account_budgets[who]
+    elif who != "":
+        budget = user_budget(who)
     end
     question = None
-    if state["question"] != None:
+    if state["question"] != None and owned(state["question"], who):
         question = {"id": state["question"]["id"], "text": state["question"]["text"],
                     "options": state["question"]["options"], "time": state["question"]["time"]}
     end
-    view = {"ok": True, "currency": "USD", "simulated_payments": True, "ai_model": "flash", "question": question, "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
+    busy = state["busy"]
+    status = state["status"]
+    if who != "" and who != worker_owner["value"]:
+        if busy:
+            status = "Agent busy · another account is running a task"
+        else:
+            status = "Ready · send another message"
+        end
+    end
+    view = {"ok": True, "currency": "USD", "simulated_payments": True, "ai_model": "flash", "question": question, "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": budget, "status": status, "busy": busy, "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
     call atomic_xchg(flags, 0, 0)
     return view
 end
@@ -623,20 +690,42 @@ function static_response(client, request):
     call send_raw(client, 200, "OK", file["data"], web.content_type(relative), request["method"] == "HEAD")
 end
 
-function reset_conversation():
+function reset_conversation(who=""):
     call lock()
-    # Nová konverzace: historie modelu a session ID se zahodí; peněženka
-    # v marketplace zůstává beze změny, další nákup vytvoří novou.
-    chat["history"] = []
-    chat["session_id"] = ""
-    chat["turn"] = 0
-    state["messages"] = [{"role": "Agent", "content": greeting}]
-    state["wallet"] = None
-    state["budget"] = None
-    state["tools"] = []
-    state["payments"] = []
-    state["question"] = None
-    root_task["value"] = ""
+    # Nová konverzace pro daný účet: jeho historie i session ID se zahodí.
+    own = account_chat(who)
+    own["history"] = []
+    own["session_id"] = ""
+    own["turn"] = 0
+    account_root_task(who)["value"] = ""
+    kept = [{"role": "Agent", "content": greeting, "who": ""}]
+    for message in state["messages"]:
+        if not owned(message, who):
+            kept.append(message)
+        end
+    end
+    state["messages"] = kept
+    kept_tools = []
+    for entry in state["tools"]:
+        if not owned(entry, who):
+            kept_tools.append(entry)
+        end
+    end
+    state["tools"] = kept_tools
+    kept_payments = []
+    for entry in state["payments"]:
+        if not owned(entry, who):
+            kept_payments.append(entry)
+        end
+    end
+    state["payments"] = kept_payments
+    if state["question"] != None and String(state["question"].get("who", "")) == who and who != "":
+        state["question"] = None
+    end
+    if who != "":
+        account_wallets.pop(who, None)
+        account_budgets.pop(who, None)
+    end
     state["status"] = "New conversation · the wallet is created on the first purchase"
     state["messages_revision"] += 1
     state["audit_revision"] += 1
@@ -653,7 +742,7 @@ function route(client, request):
         target = raw[0:query]
     end
     if target == "/api/state" and method == "GET":
-        call send_json(client, 200, snapshot(raw.find("lite=1") >= 0))
+        call send_json(client, 200, snapshot(raw.find("lite=1") >= 0, authenticated(request)))
         return
     end
     if target == "/api/health" and method == "GET":
@@ -788,6 +877,10 @@ function route(client, request):
                 call send_error_json(client, 409, "this question is no longer open")
                 return
             end
+            if String(pending.get("who", "")) != "" and String(pending.get("who", "")) != who:
+                call send_error_json(client, 409, "this question belongs to another account")
+                return
+            end
             if type(answer) != "String" or len(answer.strip()) == 0 or len(answer) > 2000:
                 call send_error_json(client, 400, "the answer must have 1 to 2000 characters")
                 return
@@ -797,15 +890,15 @@ function route(client, request):
                 return
             end
             budget_holder["value"] = user_budget(who)
-            if root_task["value"] == "":
-                root_task["value"] = String(pending["task"])
+            if account_root_task(who)["value"] == "":
+                account_root_task(who)["value"] = String(pending["task"])
             end
             prompt = "Original task: " + String(pending["task"]) + chr(10) + "Your question: " + String(pending["text"]) + chr(10) + "The user's answer: " + answer.strip() + chr(10) + "Now carry out the original task completely and autonomously. Ask again only if another required input is genuinely missing."
             call lock()
             state["question"] = None
             call append_message("You", answer.strip())
             call unlock()
-            call start("resume", prompt)
+            call start("resume", prompt, who)
             call send_json(client, 200, {"ok": True, "account": who})
             return
         end
@@ -907,7 +1000,7 @@ function route(client, request):
             budget_holder["value"] = new_budget
             wallet = None
             call lock()
-            session_id = chat["session_id"]
+            session_id = account_chat(who)["session_id"]
             call unlock()
             if session_id != "":
                 try:
@@ -920,6 +1013,8 @@ function route(client, request):
                     call lock()
                     state["wallet"] = wallet
                     state["budget"] = topped["budget"]
+                    account_wallets[who] = wallet
+                    account_budgets[who] = topped["budget"]
                     call unlock()
                 end
             end
@@ -942,7 +1037,7 @@ function route(client, request):
                 call send_error_json(client, 409, "The agent is still working; wait for it to finish.")
                 return
             end
-            call reset_conversation()
+            call reset_conversation(who)
             call send_json(client, 200, {"ok": True})
             return
         end
@@ -959,7 +1054,7 @@ function route(client, request):
             end
         end
         if target == "/api/catalog":
-            call start("catalog", "")
+            call start("catalog", "", who)
             call send_json(client, 200, {"ok": True})
             return
         end
@@ -979,8 +1074,8 @@ function route(client, request):
         end
         guard["last_chat"] = time.time()
         budget_holder["value"] = user_budget(who)
-        root_task["value"] = message
-        call start("turn", message)
+        account_root_task(who)["value"] = message
+        call start("turn", message, who)
         call send_json(client, 200, {"ok": True, "account": who, "budget": budget_holder["value"]})
         return
     end

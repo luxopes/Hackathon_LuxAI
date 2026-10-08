@@ -1270,7 +1270,7 @@ async function loadOffers() {
 
 async function poll() {
   try {
-    const resp = await fetch("api/state?lite=1&t=" + Date.now());
+    const resp = await apiFetch("api/state?lite=1&t=" + Date.now());
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const st = await resp.json();
     if (!st || st.ok !== true) throw new Error("invalid state");
@@ -1289,7 +1289,7 @@ async function poll() {
     $("bell-dot").hidden = !st.busy || !$("bell-count").hidden;
     if (st.messages_revision !== lastMessagesRev || st.audit_revision !== lastAuditRev
         || st.notifications_revision !== lastNotificationsRev) {
-      const full = await (await fetch("api/state?t=" + Date.now())).json();
+      const full = await (await apiFetch("api/state?t=" + Date.now())).json();
       if (full && full.ok === true) {
         fullState = full;
         latest = full;

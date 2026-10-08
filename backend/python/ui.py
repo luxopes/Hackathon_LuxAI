@@ -219,7 +219,7 @@ def shell(base, active, crumbs, content, search_hint="Search by job ID, transact
 </head><body>
 <div class="layout">
 <aside class="side">
-  <div class="brand"><span class="mark"></span><span class="name">LUX</span></div>
+  <div class="brand"><span class="mark"></span><span class="name">LUX AGENTS</span></div>
   <div class="tagline">Autonomous value flow.</div>
   {_nav(base, active)}
   <div class="me"><span class="avatar">L</span><div><div class="who">Simulated USD</div><div class="sub">{escape(description)}</div></div></div>

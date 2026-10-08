@@ -1,0 +1,24 @@
+[Unit]
+Description=ProofPay LSL seller %i
+After=network.target proofpay-market.service
+
+[Service]
+User=proofpay
+Group=proofpay
+WorkingDirectory=/opt/proofpay-mvp
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/proofpay-mvp
+UMask=0077
+CPUQuota=50%
+TasksMax=64
+MemoryMax=96M
+EnvironmentFile=/etc/proofpay-mvp/seller-%i.env
+ExecStart=/opt/proofpay-mvp/seller
+
+[Install]
+WantedBy=multi-user.target

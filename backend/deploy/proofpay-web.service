@@ -1,0 +1,24 @@
+[Unit]
+Description=ProofPay web chat (LSL, simulated credits)
+After=network.target proofpay-market.service
+
+[Service]
+User=proofpay
+Group=proofpay
+WorkingDirectory=/opt/proofpay-mvp
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/proofpay-mvp
+UMask=0077
+CPUQuota=50%
+TasksMax=64
+MemoryMax=256M
+Environment=PROOFPAY_CHAT_CONFIG=/etc/proofpay-mvp/chat.env
+ExecStart=/opt/proofpay-mvp/web-server
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# Caddy route for the ProofPay backend (excerpt of the api.<domain> site block).
+# The console frontend is served from the same origin as its API, so the
+# browser never needs CORS and the client token never leaves the server.
+
+api.example.com {
+	# Marketplace API + public overview dashboard.
+	redir /hackathon01 /hackathon01/ 308
+	handle_path /hackathon01/* {
+		reverse_proxy 127.0.0.1:3070
+	}
+
+	# Agent console API + static frontend.
+	# header_up -Via: the LSL HTTP server rejects duplicated Via headers that
+	# a proxy chain may add, so strip them for this route.
+	redir /hackathon01/web /hackathon01/web/ 308
+	handle_path /hackathon01/web/* {
+		reverse_proxy 127.0.0.1:3069 {
+			header_up -Via
+		}
+	}
+}

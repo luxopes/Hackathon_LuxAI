@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lux Coins · Agentic Economy</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e8edf8}
+*{box-sizing:border-box}body{max-width:1100px;margin:auto;padding:40px 24px}h1{font-size:clamp(36px,6vw,64px);letter-spacing:-2px;margin:8px 0}h2{font-size:22px}.muted{color:#9daac4}.badge{display:inline-block;border:1px solid #586275;background:#242b3c;padding:7px 12px;border-radius:30px;font-size:12px;font-weight:700;letter-spacing:.7px}.notice{border-left:3px solid #fbbf24;background:#1e2435;padding:16px 20px;margin:24px 0;line-height:1.6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.card{padding:22px;background:#141d32;border:1px solid #29364e;border-radius:16px}.price{font-size:30px;font-weight:700;margin:10px 0}.session{margin-top:20px}.row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.status{font:12px ui-monospace,monospace;background:#25314b;padding:6px 9px;border-radius:6px}.PAID{color:#85edb2}.REFUNDED{color:#f9cf71}table{width:100%;border-collapse:collapse;margin-top:15px;font-size:14px}td,th{text-align:left;padding:12px 8px;border-bottom:1px solid #29364e}th{color:#9daac4}code{font-size:12px;overflow-wrap:anywhere}.ledger{font:12px ui-monospace,monospace;line-height:1.9;color:#adbad3}.check{padding:8px 0;font-size:14px}.good{color:#85edb2}.bad{color:#ff9393}a{color:#a9bfff}details{margin-top:16px}footer{margin-top:40px;font-size:13px;color:#9daac4}#connection{font-size:13px}.empty{padding:35px;text-align:center;border:1px dashed #37455d;border-radius:16px}
+</style>
+<style>select{background:#141d32;color:#e8edf8;border:1px solid #586275;padding:10px;border-radius:9px;max-width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1020;padding:15px;border-radius:8px;max-height:350px;overflow:auto;font-size:13px}.artifact{white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}td{overflow-wrap:anywhere}.ledger{overflow-wrap:anywhere}</style>
+<div class="row"><span class="badge">AGENTIC ECONOMY · VERIFICATION MVP</span><span class="muted"><a href="/hackathon01/web/" style="font-weight:700">→ Agent web console (chat, tools, payments)</a></span><span id="connection" class="muted">Connecting…</span></div>
+<h1>Lux Coins</h1>
+<p class="muted">The agent orders work. Verifies delivery. Resolves disputes.</p>
+<div class="notice"><strong>Payments are simulated Lux Coins.</strong> LSL sellers offer research, Python code, summaries, translation, ideas and cart audits. The buyer compares prices, orders work and checks the agreed delivery. Research uses Wikipedia; code is syntax-validated and is never executed automatically.</div>
+<div class="row"><h2>Marketplace services</h2><label>Service <select id="serviceFilter"><option value="all">All services</option></select></label></div><div class="grid" id="offers"></div>
+<h2>Sessions and credit movement</h2><div id="sessions"></div>
+<footer id="invariant"></footer>
+<script>
+// API values are inserted as text so offer descriptions and names cannot run code.
+const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n};
+const money=n=>`${n} Lux Coins`;
+let latest=null;
+const actionNames={TEST_CREDITS_ISSUED:'Lux Coins issued',LUX_COINS_ISSUED:'Lux Coins issued',ESCROW_LOCKED:'Escrow',PAYMENT_RELEASED:'Paid',REFUND_AUTHORIZED_BY_CONTRACT:'Refund',RESULT_DELIVERED:'Delivery received',DELIVERY_FAILED:'Delivery failed',EXECUTION_INTERRUPTED:'Interrupted by restart'};
+function artifact(details,result){
+ const a=result.artifact;if(!a)return;
+ details.append(node('p',a.summary));if(a.content)details.append(node('div',a.content,'artifact'));
+ if(a.ideas){const list=node('ol');for(const idea of a.ideas)list.append(node('li',idea));details.append(list)}
+ if(a.code){details.append(node('h3','Python code'),node('pre',a.code),node('h3','Basic tests'),node('pre',a.tests))}
+ if(a.sources){const list=node('ul');for(const source of a.sources){const entry=node('li');let url;try{url=new URL(source.url)}catch{}if(url&&url.protocol==='https:'){const link=node('a',source.title);link.href=url.href;link.rel='noopener noreferrer';link.target='_blank';entry.append(link)}else entry.append(node('span',source.title));list.append(entry)}details.append(node('h3','Sources fetched'),list)}
+}
+function render(data){
+ latest=data;
+ const filter=document.getElementById('serviceFilter');const selected=filter.value;
+ filter.replaceChildren();const all=node('option','All services');all.value='all';filter.append(all);
+ for(const [id,service] of Object.entries(data.services||{})){const option=node('option',service.name);option.value=id;filter.append(option)}filter.value=selected;
+ const offers=document.getElementById('offers');offers.replaceChildren();
+ for(const o of data.offers){if(filter.value!=='all'&&o.capability!==filter.value)continue;const card=node('div',undefined,'card');card.dataset.capability=o.capability;card.append(node('strong',o.service_name),node('p',o.name,'muted'),node('div',money(o.price),'price'),node('p',o.delivery,'muted'),node('code',o.seller_id));offers.append(card)}
+ const sessions=document.getElementById('sessions');sessions.replaceChildren();
+ if(!data.sessions.length)sessions.append(node('div','No sessions yet. Use the agent web console to purchase a service.','empty'));
+ for(const s of data.sessions){
+  const card=node('section',undefined,'card session');const heading=node('div',undefined,'row');heading.append(node('strong',s.title),node('code',s.id));card.append(heading);
+  card.append(node('p',`Budget ${money(s.budget)} · Available ${money(s.wallet.available)} · In escrow ${money(s.wallet.locked)}`,'muted'));
+  const table=node('table');const header=node('tr');for(const t of ['Service','Seller','Price','State'])header.append(node('th',t));table.append(header);
+  for(const j of s.jobs){const row=node('tr');row.append(node('td',data.services?.[j.contract.capability]?.name||j.contract.capability),node('td',j.seller_id),node('td',money(j.price)));const status=node('td');status.append(node('span',j.state,'status '+j.state));row.append(status);table.append(row)}card.append(table);
+  for(const j of s.jobs){if(j.state==='PAID'&&j.result){const details=node('details');details.open=true;details.append(node('summary','Ordered service result'));for(const c of j.result.checks||[]){details.append(node('div',`${c.passed?'✓':'✕'} ${c.case_id}: expected ${c.expected_cents}, observed ${c.observed_cents} cents`, 'check '+(c.passed?'good':'bad')))}artifact(details,j.result);details.append(node('code','Delivery SHA-256: '+j.result_sha256));card.append(details)}}
+  const details=node('details');details.append(node('summary','Payment records'));for(const entry of s.ledger)details.append(node('div',`${actionNames[entry.action]||entry.action} · ${money(entry.amount)}`,'ledger'));card.append(details);sessions.append(card)
+ }
+ document.getElementById('invariant').textContent=`Lux Coins: issued ${data.invariant.issued}, accounted ${data.invariant.accounted} · ${data.invariant.holds?'OK':'ERROR'}. Payments are simulated; structural delivery checks do not guarantee general semantic correctness.`
+}
+document.getElementById('serviceFilter').addEventListener('change',()=>{if(latest)render(latest)});
+let busy=false;async function refresh(){if(busy)return;busy=true;try{const r=await fetch('api/dashboard');if(!r.ok)throw Error('HTTP '+r.status);render(await r.json());document.getElementById('connection').textContent='Updated '+new Date().toLocaleTimeString('en-GB')}catch(e){document.getElementById('connection').textContent='Connection failed: '+e.message}finally{busy=false}}
+refresh();setInterval(refresh,3000);
+</script>
+</html>

@@ -1,0 +1,177 @@
+{
+  "port": 3070,
+  "database": "/var/lib/proofpay-mvp/market.db",
+  "client_token_file": "/etc/proofpay-mvp/client.token",
+  "sellers": [
+    {
+      "id": "partial",
+      "offer_id": "offer-partial",
+      "name": "QuickCheck",
+      "price": 3,
+      "url": "http://127.0.0.1:3081",
+      "token_file": "/etc/proofpay-mvp/partial.token",
+      "delivery": "Three HTTP cart checks with execution receipts"
+    },
+    {
+      "id": "complete",
+      "offer_id": "offer-complete",
+      "name": "ThoroughCheck",
+      "price": 7,
+      "url": "http://127.0.0.1:3082",
+      "token_file": "/etc/proofpay-mvp/complete.token",
+      "delivery": "Three HTTP cart checks with execution receipts"
+    },
+    {
+      "id": "scout",
+      "name": "Scout",
+      "url": "http://127.0.0.1:3083",
+      "token_file": "/etc/proofpay-mvp/scout.token",
+      "offers": [
+        {
+          "id": "offer-scout-short-research",
+          "name": "Scout",
+          "capability": "short-research",
+          "price": 3,
+          "tier": "compact",
+          "delivery": "Short research with two sources fetched from Wikipedia"
+        },
+        {
+          "id": "offer-scout-python-code",
+          "name": "Scout",
+          "capability": "python-code",
+          "price": 5,
+          "tier": "compact",
+          "delivery": "Python code and basic tests with syntax validation"
+        },
+        {
+          "id": "offer-scout-text-summary",
+          "name": "Scout",
+          "capability": "text-summary",
+          "price": 2,
+          "tier": "compact",
+          "delivery": "Concise summary of the submitted text"
+        },
+        {
+          "id": "offer-scout-translation",
+          "name": "Scout",
+          "capability": "translation",
+          "price": 2,
+          "tier": "compact",
+          "delivery": "Translation of the submitted text as requested"
+        },
+        {
+          "id": "offer-scout-ideas",
+          "name": "Scout",
+          "capability": "ideas",
+          "price": 3,
+          "tier": "compact",
+          "delivery": "Five specific ideas with a short explanation"
+        }
+      ]
+    },
+    {
+      "id": "insight",
+      "name": "Insight Lab",
+      "url": "http://127.0.0.1:3084",
+      "token_file": "/etc/proofpay-mvp/insight.token",
+      "offers": [
+        {
+          "id": "offer-insight-short-research",
+          "name": "Insight Lab",
+          "capability": "short-research",
+          "price": 6,
+          "tier": "balanced",
+          "delivery": "Short research with two sources fetched from Wikipedia"
+        },
+        {
+          "id": "offer-insight-python-code",
+          "name": "Insight Lab",
+          "capability": "python-code",
+          "price": 9,
+          "tier": "balanced",
+          "delivery": "Python code and basic tests with syntax validation"
+        },
+        {
+          "id": "offer-insight-text-summary",
+          "name": "Insight Lab",
+          "capability": "text-summary",
+          "price": 4,
+          "tier": "balanced",
+          "delivery": "Concise summary of the submitted text"
+        },
+        {
+          "id": "offer-insight-translation",
+          "name": "Insight Lab",
+          "capability": "translation",
+          "price": 4,
+          "tier": "balanced",
+          "delivery": "Translation of the submitted text as requested"
+        },
+        {
+          "id": "offer-insight-ideas",
+          "name": "Insight Lab",
+          "capability": "ideas",
+          "price": 5,
+          "tier": "balanced",
+          "delivery": "Five specific ideas with a short explanation"
+        }
+      ]
+    },
+    {
+      "id": "atlas",
+      "name": "Atlas Studio",
+      "url": "http://127.0.0.1:3085",
+      "token_file": "/etc/proofpay-mvp/atlas.token",
+      "offers": [
+        {
+          "id": "offer-atlas-short-research",
+          "name": "Atlas Studio",
+          "capability": "short-research",
+          "price": 9,
+          "tier": "detailed",
+          "delivery": "Short research with two sources fetched from Wikipedia"
+        },
+        {
+          "id": "offer-atlas-python-code",
+          "name": "Atlas Studio",
+          "capability": "python-code",
+          "price": 14,
+          "tier": "detailed",
+          "delivery": "Python code and basic tests with syntax validation"
+        },
+        {
+          "id": "offer-atlas-text-summary",
+          "name": "Atlas Studio",
+          "capability": "text-summary",
+          "price": 7,
+          "tier": "detailed",
+          "delivery": "Concise summary of the submitted text"
+        },
+        {
+          "id": "offer-atlas-translation",
+          "name": "Atlas Studio",
+          "capability": "translation",
+          "price": 6,
+          "tier": "detailed",
+          "delivery": "Translation of the submitted text as requested"
+        },
+        {
+          "id": "offer-atlas-ideas",
+          "name": "Atlas Studio",
+          "capability": "ideas",
+          "price": 8,
+          "tier": "detailed",
+          "delivery": "Five specific ideas with a short explanation"
+        },
+        {
+          "id": "offer-atlas-audit",
+          "name": "Atlas Studio",
+          "capability": "http-cart-audit",
+          "price": 10,
+          "tier": "detailed",
+          "delivery": "Three HTTP cart checks with execution receipts"
+        }
+      ]
+    }
+  ]
+}

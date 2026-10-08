@@ -1,0 +1,23 @@
+[Unit]
+Description=ProofPay MVP marketplace (simulated credits)
+After=network.target
+
+[Service]
+User=proofpay
+Group=proofpay
+WorkingDirectory=/opt/proofpay-mvp
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/proofpay-mvp
+UMask=0077
+CPUQuota=50%
+TasksMax=64
+MemoryMax=128M
+ExecStart=/usr/bin/python3 /opt/proofpay-mvp/marketplace.py --config /etc/proofpay-mvp/market.json
+
+[Install]
+WantedBy=multi-user.target

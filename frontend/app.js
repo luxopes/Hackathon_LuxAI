@@ -354,8 +354,8 @@ function renderWallet(st) {
   const budget = st.budget != null ? st.budget : null;
   $("side-balance").innerHTML = (available === null ? "—" : available) + "<small> LC</small>";
   $("balance-total").innerHTML = (available === null ? "—" : available + locked) + "<small> LC</small>";
-  $("balance-note").textContent = available === null ? "Demo credits only"
-    : `available ${available} · in escrow ${locked}${budget ? " · budget " + budget : ""}`;
+  $("balance-note").textContent = available === null ? "Simulated credits · 1 USD = 20 LC"
+    : `available ${available} LC (≈ $${(available * 0.05).toFixed(2)}) · in escrow ${locked}${budget ? " · budget " + budget : ""} · simulated`;
   $("balance-bar").style.width = available === null || !budget ? "100%" : Math.min(100, Math.round(((available + locked) / budget) * 100)) + "%";
   const field = $("task-budget");
   if (available === null) {
@@ -959,7 +959,7 @@ const GUIDE_STEPS = [
   { sel: "#profile", title: "Your account", text: "Top up simulated coins, open transactions, or sign out." },
 ];
 let guideIndex = 0;
-let stripeEur = 1;
+let stripeUsd = 1;
 
 function positionGuide() {
   const step = GUIDE_STEPS[guideIndex];
@@ -1005,15 +1005,15 @@ async function openTopUp() {
   $("topup-dialog").showModal();
 }
 
-function setStripeEur(amount) {
-  stripeEur = amount;
-  document.querySelectorAll("#stripe-presets .eur").forEach((button) => button.classList.toggle("active", Number(button.dataset.eur) === amount));
+function setStripeUsd(amount) {
+  stripeUsd = amount;
+  document.querySelectorAll("#stripe-presets .usd").forEach((button) => button.classList.toggle("active", Number(button.dataset.usd) === amount));
 }
 
 async function payByCard() {
   $("stripe-status").textContent = "Creating a Stripe test checkout…";
   try {
-    const resp = await post("api/topup/stripe", { amount_eur: stripeEur });
+    const resp = await post("api/topup/stripe", { amount_usd: stripeUsd });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok || !data.stripe || !data.stripe.checkout_url) {
       $("stripe-status").textContent = (data.error || "Stripe checkout failed") + " (HTTP " + resp.status + ")";
@@ -1023,24 +1023,6 @@ async function payByCard() {
     window.location.href = data.stripe.checkout_url;
   } catch (error) {
     $("stripe-status").textContent = "Stripe checkout failed: " + error.message;
-  }
-}
-
-async function sandboxCardPay() {
-  $("stripe-sandbox").disabled = true;
-  $("stripe-status").textContent = "Creating a Stripe test payment with the visa test card…";
-  try {
-    const resp = await post("api/topup/stripe/sandbox", { amount_eur: stripeEur });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) { $("stripe-status").textContent = (data.error || "Stripe payment failed") + " (HTTP " + resp.status + ")"; return; }
-    const stripe = data.stripe || {};
-    if (data.user) applyAccount(data.user);
-    $("stripe-status").textContent = "Stripe test payment " + (stripe.stripe_reference || "") + " confirmed: +" + stripe.lux_coins + " Lux Coins (" + stripe.session_id + ").";
-    lastAuditRev = -1;
-  } catch (error) {
-    $("stripe-status").textContent = "Stripe payment failed: " + error.message;
-  } finally {
-    $("stripe-sandbox").disabled = false;
   }
 }
 
@@ -1307,9 +1289,8 @@ $("topup-submit").addEventListener("click", submitTopUp);
 document.querySelectorAll("#topup-presets button").forEach((button) => button.addEventListener("click", () => {
   $("topup-amount").value = button.dataset.amount;
 }));
-document.querySelectorAll("#stripe-presets .eur").forEach((button) => button.addEventListener("click", () => setStripeEur(Number(button.dataset.eur))));
+document.querySelectorAll("#stripe-presets .usd").forEach((button) => button.addEventListener("click", () => setStripeUsd(Number(button.dataset.usd))));
 $("stripe-pay").addEventListener("click", payByCard);
-$("stripe-sandbox").addEventListener("click", sandboxCardPay);
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });

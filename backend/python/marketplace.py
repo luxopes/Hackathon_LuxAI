@@ -551,9 +551,9 @@ class Market:
             return
 
     # --- Stripe (test mode): karta dobije simulované Lux Coins; ledger zůstává jediné účetnictví.
-    STRIPE_EUR_TO_LC = 20
-    STRIPE_MIN_EUR = 1
-    STRIPE_MAX_EUR = 25
+    STRIPE_USD_TO_LC = 20
+    STRIPE_MIN_USD = 1
+    STRIPE_MAX_USD = 25
 
     def stripe_request(self, method, path, params=None):
         if not self.stripe_key:
@@ -578,13 +578,13 @@ class Market:
         except (URLError, OSError, ValueError):
             raise Problem(502, "Stripe is unavailable")
 
-    def stripe_amount(self, amount_eur):
-        if type(amount_eur) is not int or not self.STRIPE_MIN_EUR <= amount_eur <= self.STRIPE_MAX_EUR:
-            raise Problem(400, f"card amount must be a whole number of euro from {self.STRIPE_MIN_EUR} to {self.STRIPE_MAX_EUR}")
-        return amount_eur * 100, amount_eur * self.STRIPE_EUR_TO_LC
+    def stripe_amount(self, amount_usd):
+        if type(amount_usd) is not int or not self.STRIPE_MIN_USD <= amount_usd <= self.STRIPE_MAX_USD:
+            raise Problem(400, f"card amount must be a whole number of US dollars from {self.STRIPE_MIN_USD} to {self.STRIPE_MAX_USD}")
+        return amount_usd * 100, amount_usd * self.STRIPE_USD_TO_LC
 
-    def stripe_checkout(self, session_id, amount_eur):
-        cents, coins = self.stripe_amount(amount_eur)
+    def stripe_checkout(self, session_id, amount_usd):
+        cents, coins = self.stripe_amount(amount_usd)
         with self.db() as db:
             if not db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone():
                 raise Problem(404, "session not found")
@@ -596,32 +596,32 @@ class Market:
             "metadata[session_id]": session_id,
             "metadata[lux_coins]": str(coins),
             "line_items[0][quantity]": "1",
-            "line_items[0][price_data][currency]": "eur",
+            "line_items[0][price_data][currency]": "usd",
             "line_items[0][price_data][unit_amount]": str(cents),
             "line_items[0][price_data][product_data][name]": f"Lux Coins top-up (Stripe test): {coins} LC",
         })
         with self.transaction() as db:
             db.execute("INSERT OR REPLACE INTO stripe_payments VALUES(?,?,?,?,?,?,?,?,NULL)",
-                       (created["id"], session_id, coins, cents, "eur", "checkout", created.get("status", "open"), time.time()))
+                       (created["id"], session_id, coins, cents, "usd", "checkout", created.get("status", "open"), time.time()))
         return {"stripe_session_id": created["id"], "checkout_url": created.get("url", ""), "lux_coins": coins, "mode": "stripe-test"}
 
-    def stripe_sandbox_pay(self, session_id, amount_eur):
+    def stripe_sandbox_pay(self, session_id, amount_usd):
         # Serverová testovací platba (jen s testovacím klíčem) – pro ověření a jako záloha dema.
         if not self.stripe_key.startswith("sk_test_"):
             raise Problem(409, "sandbox payments are only available with a test key")
-        cents, coins = self.stripe_amount(amount_eur)
+        cents, coins = self.stripe_amount(amount_usd)
         with self.db() as db:
             if not db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone():
                 raise Problem(404, "session not found")
         intent = self.stripe_request("POST", "payment_intents", {
-            "amount": str(cents), "currency": "eur", "payment_method": "pm_card_visa", "confirm": "true",
+            "amount": str(cents), "currency": "usd", "payment_method": "pm_card_visa", "confirm": "true",
             "automatic_payment_methods[enabled]": "true", "automatic_payment_methods[allow_redirects]": "never",
             "description": f"Lux Coins top-up (Stripe test): {coins} LC",
             "metadata[session_id]": session_id, "metadata[lux_coins]": str(coins),
         })
         with self.transaction() as db:
             db.execute("INSERT OR REPLACE INTO stripe_payments VALUES(?,?,?,?,?,?,?,?,NULL)",
-                       (intent["id"], session_id, coins, cents, "eur", "payment_intent", intent.get("status", "unknown"), time.time()))
+                       (intent["id"], session_id, coins, cents, "usd", "payment_intent", intent.get("status", "unknown"), time.time()))
         return {"stripe_session_id": intent["id"], "lux_coins": coins, "status": intent.get("status"), "mode": "stripe-test"}
 
     def stripe_confirm(self, stripe_id):
@@ -1025,10 +1025,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(201, market.buy(payload))
             if path.startswith("/api/sessions/") and path.endswith("/stripe-checkout"):
                 session_id = path.removeprefix("/api/sessions/").removesuffix("/stripe-checkout")
-                return self.send(200, market.stripe_checkout(session_id, payload.get("amount_eur")))
+                return self.send(200, market.stripe_checkout(session_id, payload.get("amount_usd")))
             if path.startswith("/api/sessions/") and path.endswith("/stripe-sandbox-pay"):
                 session_id = path.removeprefix("/api/sessions/").removesuffix("/stripe-sandbox-pay")
-                return self.send(200, market.stripe_sandbox_pay(session_id, payload.get("amount_eur")))
+                return self.send(200, market.stripe_sandbox_pay(session_id, payload.get("amount_usd")))
             if path.startswith("/api/sessions/") and path.endswith("/stripe-confirm"):
                 return self.send(200, market.stripe_confirm(payload.get("stripe_session_id")))
             if path.startswith("/api/sessions/") and path.endswith("/topup"):

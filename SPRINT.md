@@ -52,13 +52,13 @@ walk through the receipt. Keep the narration tight at the start.
 
 | t | Screen / action | Talk track |
 |---|---|---|
-| 0:00–0:10 | Console (fresh state) | “Every agent deal still ends at a human’s credit card. We removed the human.” |
-| 0:10–0:20 | Click **▶ Auto demo** | “One click. From here nobody touches anything: discovery, purchase, dispute resolution.” |
-| 0:20–0:40 | Tools panel fills with Flash tool + HTTP calls; escrow pill appears, turns into a refusal, refund, re-purchase | “The agent calls `fetch_offers`, locks the cheapest audit in escrow with an idempotency key, refuses the incomplete delivery, gets refunded and buys elsewhere — nothing pays twice.” |
-| 0:40–0:55 | Paid delivery with the **CART BUG** line; wallet numbers; open the **Payments** tab, click 🧾 | “Only the verified delivery is paid. Here is the receipt.” |
-| 0:55–1:35 | Receipt page: money movement table with buyer balances, lifecycle stepper, contract + delivery hashes, **SIGNED RECEIPT** badge | “Double-entry ledger movements with reconstructed balances, the escrow lifecycle, contract and delivery SHA-256 — and an Ed25519-signed receipt.” |
-| 1:35–1:50 | Run the verifier, or show `/docs` + the ledger chain badge | “Anyone can verify it offline with the published key, the ledger is an append-only hash chain, and the market invariant issued == accounted holds.” |
-| 1:50–2:00 | Payments list (totals, success rate) | “Caps hold, nothing pays twice — and every payment is labelled simulated.” |
+| 0:00–0:08 | Console (fresh state) | “Every agent deal still ends at a human’s credit card. We kept the card — and removed the human.” |
+| 0:08–0:30 | **Top up coins → Pay by card (Stripe)**: the Stripe checkout page (LuxAI sandbox) with card 4242 4242 4242 4242, pay, back in the console with credited coins | “The buyer pays by card on a real Stripe checkout — test mode, 1 USD = 20 Lux Coins. The card flow, the redirect and the confirmation are genuine Stripe objects; the coins are simulated and labelled as such.” (cut the card typing if time is short) |
+| 0:30–0:48 | Click **▶ Auto demo** | “One click. From here nobody touches anything: discovery, purchase, dispute resolution.” |
+| 0:48–1:05 | Tools panel fills with Flash tool + HTTP calls; escrow pill appears, turns into a refusal, refund, re-purchase; paid delivery with the **CART BUG** line; open the **Payments** tab, click 🧾 | “The agent calls `fetch_offers`, locks the cheapest audit in escrow with an idempotency key, refuses the incomplete delivery, gets refunded and buys elsewhere — nothing pays twice. Only the verified delivery is paid.” |
+| 1:05–1:40 | Receipt page: money movement table with buyer balances (LC and ≈ USD), lifecycle stepper, contract + delivery hashes, **SIGNED RECEIPT** badge | “Double-entry movements with reconstructed balances, the escrow lifecycle, contract and delivery SHA-256 — and an Ed25519-signed receipt.” |
+| 1:40–1:52 | Run the verifier, or show `/docs` + the ledger chain badge | “Anyone can verify it offline with the published key, the ledger is an append-only hash chain, and issued == accounted holds.” |
+| 1:52–2:00 | Payments list (totals, success rate) | “Caps hold, nothing pays twice — and every payment is labelled simulated.” |
 
 ---
 
@@ -68,6 +68,8 @@ walk through the receipt. Keep the narration tight at the start.
 - [x] Quotas checked: ElevenLabs 46/131000 chars, Apify credit almost unused, Flash OK
 - [x] Rehearsal run measured: refund + re-purchase + receipt in ~20–30 s
 - [x] Signed receipt verified offline against the production key (tamper test fails)
+- [x] Stripe test-mode card top-up rehearsed end to end (checkout page → paid → credited)
+- [ ] Stripe card flow must be rehearsed on the recording browser (log in first, then pay)
 - [ ] Browser zoom 125 %, no bookmarks bar, notifications off
 - [ ] Services: market, web, tts, all five sellers active
 - [ ] Flash + Apify + ElevenLabs quota checked (one full rehearsal run)

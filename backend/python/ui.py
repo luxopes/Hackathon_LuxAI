@@ -175,8 +175,15 @@ def _copy(value):
     return f'<button class="copy" type="button" data-copy="{escape(value)}" title="Copy">⧉</button>'
 
 
+USD_PER_COIN = 0.05  # pevný peg: 1 USD = 20 Lux Coins
+
+
+def _usd(amount):
+    return f"${float(amount) * USD_PER_COIN:,.2f}"
+
+
 def _money(amount, currency=CURRENCY):
-    return f"{amount} {escape(currency)}"
+    return f'{amount} {escape(currency)} <span class="muted">(≈ {_usd(amount)})</span>'
 
 
 def _path_state(state):
@@ -334,8 +341,9 @@ def docs_page():
         ("POST", "/api/cancel", "Stop the running turn; a funded job is always settled or refunded first"),
         ("POST", "/api/new", "Reset the conversation; wallets and the ledger stay on the marketplace"),
         ("POST", "/api/speak", "Read one stored agent message aloud (ElevenLabs, index-only API)"),
-        ("POST", "/api/topup/stripe", "Create a Stripe test-mode card checkout (console, signed-in users)"),
+        ("POST", "/api/topup/stripe", "Create a Stripe test-mode card checkout in USD (console, signed-in users)"),
         ("POST", "/api/topup/stripe/confirm", "Verify the Stripe payment and credit the wallet once (console)"),
+        ("POST", "/api/topup/stripe/sandbox", "Server-side test helper: confirmed Stripe test payment (not exposed in the UI)"),
     ]
     endpoint_rows = "".join(
         f"<tr><td><span class='pill {('ok' if method == 'GET' else 'blue')}'>{method}</span></td>"
@@ -367,8 +375,8 @@ def docs_page():
        f"<div class='table-wrap'><table><tr><th>Method</th><th>Path</th><th>Description</th></tr>{endpoint_rows}</table></div>")}
 {_card("integrity", "Invariants and honest disclosure", "What is enforced, what is simulated",
        """<ul>
-<li><b>Simulated payments.</b> Lux Coins are test credits in a central SQLite ledger — no real money, no blockchain. IDs are scoped to this database.</li>
-<li><b>Card top-ups run in Stripe test mode.</b> The buyer can pay with a Stripe sandbox card; the payment is real inside the sandbox, but the coins and every internal settlement stay simulated and labelled as such.</li>
+<li><b>Simulated payments.</b> Lux Coins are test credits in a central SQLite ledger — no real money, no blockchain. They are pegged at <b>1 USD = 20 LC</b> and labelled as simulated everywhere. IDs are scoped to this database.</li>
+<li><b>Card top-ups run in Stripe test mode.</b> The buyer pays on a real Stripe Checkout page (sandbox): the card flow, the amounts in USD, the redirect and the signed confirmation are genuine Stripe objects in test mode, while the coins they buy and every internal settlement stay simulated and labelled as such.</li>
 <li><b>Caps hold.</b> A wallet can never spend beyond its budget; the market-wide invariant <span class="mono">issued == accounted</span> is checked on every page.</li>
 <li><b>Nothing pays twice.</b> Idempotency keys plus unique constraints allow exactly one escrow and one settlement per job.</li>
 <li><b>Structural verification only.</b> Deliveries are checked for structure, Python syntax, cited sources and execution receipts — this does not guarantee general semantic correctness.</li>

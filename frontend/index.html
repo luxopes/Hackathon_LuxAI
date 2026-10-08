@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 <aside class="sidebar">
@@ -72,7 +72,7 @@
 </header>
 
 <main>
-  <div class="page-head"><span>Workspace / Overview</span><span class="demo-label">DEMO WORKSPACE</span></div>
+  <div class="page-head"><span>Workspace / Overview</span><span class="demo-label">SIMULATED ECONOMY · DEMO</span></div>
 
   <div class="dashboard">
     <div class="main-column">
@@ -280,21 +280,20 @@
   <p class="text-muted" id="topup-status"></p>
   <div class="topup-divider"><span>or pay by card</span></div>
   <div class="topup-presets" id="stripe-presets">
-    <button type="button" class="eur active" data-eur="1">1 € = 20 LC</button>
-    <button type="button" class="eur" data-eur="5">5 € = 100 LC</button>
-    <button type="button" class="eur" data-eur="10">10 € = 200 LC</button>
+    <button type="button" class="usd active" data-usd="1">$1 = 20 LC</button>
+    <button type="button" class="usd" data-usd="5">$5 = 100 LC</button>
+    <button type="button" class="usd" data-usd="10">$10 = 200 LC</button>
   </div>
   <div class="stripe-actions">
     <button class="primary" type="button" id="stripe-pay">Pay by card (Stripe)</button>
-    <button type="button" id="stripe-sandbox" title="Creates and confirms a Stripe test payment with the visa test card">Simulate card payment (test)</button>
   </div>
-  <p class="text-muted stripe-note" id="stripe-status">Stripe test mode (sandbox). On the Stripe page use card <b>4242 4242 4242 4242</b>, any future date and any CVC. No real money moves; credits are simulated Lux Coins.</p>
+  <p class="text-muted stripe-note" id="stripe-status">Card payments run in <b>Stripe test mode</b> (sandbox): use <b>4242 4242 4242 4242</b>, any future date and any CVC on the Stripe page. The wallet is credited with <b>simulated Lux Coins</b> (1 USD = 20 LC) — a realistic flow, no real money.</p>
   <div class="dialog-footer">
     <button type="button" id="topup-cancel">Cancel</button>
     <button class="primary" type="button" id="topup-submit">Top up</button>
   </div>
 </dialog>
 
-<script src="app.js?v=22"></script>
+<script src="app.js?v=24"></script>
 </body>
 </html>

@@ -135,8 +135,8 @@ function ensure_session():
     if current != "":
         return current
     end
-    created = buyer.api(config, "POST", "/api/sessions", {"title": "Wallet top-up", "budget": 1,
-        "fixture": config.get("fixture", "buggy"), "service": "auto"})
+    created = buyer.api(config, "POST", "/api/sessions", {"title": "Wallet top-up",
+        "budget": Int(config.get("budget", 30)), "fixture": config.get("fixture", "buggy"), "service": "auto"})
     call lock()
     chat["session_id"] = created["id"]
     state["wallet"] = created["wallet"]
@@ -725,18 +725,18 @@ function route(client, request):
                 call send_json(client, 200, {"stripe": outcome, "user": user_public(user_find(who)), "wallet": state["wallet"]})
                 return
             end
-            amount_eur = None
+            amount_usd = None
             if type(payload) == "Dictionary":
-                amount_eur = payload.get("amount_eur")
+                amount_usd = payload.get("amount_usd")
             end
-            if type(amount_eur) != "Int" or amount_eur < 1 or amount_eur > 25:
-                call send_error_json(client, 400, "card amount must be a whole number of euro from 1 to 25")
+            if type(amount_usd) != "Int" or amount_usd < 1 or amount_usd > 25:
+                call send_error_json(client, 400, "card amount must be a whole number of US dollars from 1 to 25")
                 return
             end
             session_id = ensure_session()
             if target == "/api/topup/stripe/sandbox":
                 try:
-                    payment = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-sandbox-pay", {"amount_eur": amount_eur})
+                    payment = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-sandbox-pay", {"amount_usd": amount_usd})
                     outcome = buyer.api(config, "POST", "/api/sessions/card/stripe-confirm", {"stripe_session_id": payment["stripe_session_id"]})
                 else:
                     call send_error_json(client, 502, "Stripe request failed")
@@ -749,7 +749,7 @@ function route(client, request):
                 return
             end
             try:
-                checkout = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-checkout", {"amount_eur": amount_eur})
+                checkout = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-checkout", {"amount_usd": amount_usd})
             else:
                 call send_error_json(client, 502, "Stripe checkout failed")
                 return

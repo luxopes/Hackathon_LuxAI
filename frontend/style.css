@@ -251,7 +251,11 @@ button.speak.active{border-color:var(--green);color:var(--green)}
 .filter.active{background:var(--ink);color:white;border-color:var(--ink)}
 .filter.active b{color:#c8d0dc}
 .empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:12.5px}
-footer{padding:25px 0;color:#8b95a3;font-size:11px;display:flex;justify-content:space-between;gap:16px}
+footer{padding:20px 0 6px;margin-top:10px;border-top:1px solid var(--line);color:#8b95a3;font-size:11px;
+  display:flex;justify-content:space-between;align-items:center;gap:16px}
+.footer-brand{letter-spacing:.06em}
+.footer-stamp{border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--muted);
+  padding:3px 11px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase}
 /* ---------- dialog ---------- */
 dialog{border:1px solid var(--line);border-radius:12px;padding:26px;width:min(560px,calc(100% - 32px));color:var(--ink);box-shadow:0 25px 100px #17202b30;background:#fff}
 dialog::backdrop{background:#15203370;backdrop-filter:blur(3px)}
@@ -668,7 +672,11 @@ button.speak.active{border-color:var(--green);color:var(--green)}
 .filter.active{background:var(--ink);color:white;border-color:var(--ink)}
 .filter.active b{color:#c8d0dc}
 .empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:12.5px}
-footer{padding:25px 0;color:#8b95a3;font-size:11px;display:flex;justify-content:space-between;gap:16px}
+footer{padding:20px 0 6px;margin-top:10px;border-top:1px solid var(--line);color:#8b95a3;font-size:11px;
+  display:flex;justify-content:space-between;align-items:center;gap:16px}
+.footer-brand{letter-spacing:.06em}
+.footer-stamp{border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--muted);
+  padding:3px 11px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase}
 /* ---------- dialog ---------- */
 dialog{border:1px solid var(--line);border-radius:12px;padding:26px;width:min(560px,calc(100% - 32px));color:var(--ink);box-shadow:0 25px 100px #17202b30;background:#fff}
 dialog::backdrop{background:#15203370;backdrop-filter:blur(3px)}

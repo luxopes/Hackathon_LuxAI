@@ -46,21 +46,28 @@ rails, seller onboarding, arbitration jury, semantic verification.
 Record the browser at 1366×768 or 1920×1080, console full screen. Voice-over in
 English, calm pace. One take = ok, do not chase perfection.
 
+Measured on the live system: the whole auto demo (catalog question + audit,
+refund, re-purchase, receipt) runs in **20–30 seconds**, so the video has room to
+walk through the receipt. Keep the narration tight at the start.
+
 | t | Screen / action | Talk track |
 |---|---|---|
 | 0:00–0:10 | Console (fresh state) | “Every agent deal still ends at a human’s credit card. We removed the human.” |
-| 0:10–0:25 | Click **▶ Auto demo** | “One click. From here nothing is touched by a human: discovery, purchase, dispute resolution.” |
-| 0:25–0:45 | Tools panel fills with Flash tool + HTTP calls; escrow pill appears | “The agent calls `fetch_offers`, picks the cheapest auditor and locks 3 Lux Coins in escrow with an idempotency key.” |
-| 0:45–1:05 | Chat shows: preview refused → refund → re-purchase; wallet numbers change | “The delivery breaks the contract, the preview is refused, the escrow is refunded automatically, and the agent buys elsewhere — nothing pays twice.” |
-| 1:05–1:25 | Paid delivery with **CART BUG** line, then open **Payments** tab and click 🧾 | “Only the verified delivery is paid. Here is the receipt.” |
-| 1:25–1:50 | Receipt page: money movement table, buyer balances, lifecycle stepper, hashes, **signature badge**, reconciliation + invariant | “Double-entry ledger movements, reconstructed balances, contract and delivery hashes, a signed receipt you can verify offline, and the market invariant issued == accounted.” |
+| 0:10–0:20 | Click **▶ Auto demo** | “One click. From here nobody touches anything: discovery, purchase, dispute resolution.” |
+| 0:20–0:40 | Tools panel fills with Flash tool + HTTP calls; escrow pill appears, turns into a refusal, refund, re-purchase | “The agent calls `fetch_offers`, locks the cheapest audit in escrow with an idempotency key, refuses the incomplete delivery, gets refunded and buys elsewhere — nothing pays twice.” |
+| 0:40–0:55 | Paid delivery with the **CART BUG** line; wallet numbers; open the **Payments** tab, click 🧾 | “Only the verified delivery is paid. Here is the receipt.” |
+| 0:55–1:35 | Receipt page: money movement table with buyer balances, lifecycle stepper, contract + delivery hashes, **SIGNED RECEIPT** badge | “Double-entry ledger movements with reconstructed balances, the escrow lifecycle, contract and delivery SHA-256 — and an Ed25519-signed receipt.” |
+| 1:35–1:50 | Run the verifier, or show `/docs` + the ledger chain badge | “Anyone can verify it offline with the published key, the ledger is an append-only hash chain, and the market invariant issued == accounted holds.” |
 | 1:50–2:00 | Payments list (totals, success rate) | “Caps hold, nothing pays twice — and every payment is labelled simulated.” |
 
 ---
 
 ## Pre-record checklist
 
-- [ ] `POST /api/new` (fresh conversation), wallet visible with budget 30
+- [x] `POST /api/new` (fresh conversation, wallet appears with budget 30 on first purchase)
+- [x] Quotas checked: ElevenLabs 46/131000 chars, Apify credit almost unused, Flash OK
+- [x] Rehearsal run measured: refund + re-purchase + receipt in ~20–30 s
+- [x] Signed receipt verified offline against the production key (tamper test fails)
 - [ ] Browser zoom 125 %, no bookmarks bar, notifications off
 - [ ] Services: market, web, tts, all five sellers active
 - [ ] Flash + Apify + ElevenLabs quota checked (one full rehearsal run)

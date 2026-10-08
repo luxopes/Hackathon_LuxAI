@@ -345,7 +345,13 @@ function renderWallet(st) {
   $("balance-note").textContent = available === null ? "Demo credits only"
     : `available ${available} · in escrow ${locked}${budget ? " · budget " + budget : ""}`;
   $("balance-bar").style.width = available === null || !budget ? "100%" : Math.min(100, Math.round(((available + locked) / budget) * 100)) + "%";
-  $("task-budget").value = budget ? budget + " LC (wallet budget)" : "—";
+  const field = $("task-budget");
+  if (available === null) {
+    field.value = budget ? budget + " LC budget · wallet created on first purchase" : "no wallet yet";
+  } else {
+    field.value = available + " LC available" + (locked ? " · " + locked + " LC in escrow" : "")
+      + (budget ? "  (wallet budget " + budget + " LC)" : "");
+  }
 }
 
 /* ---------- sellers board ---------- */

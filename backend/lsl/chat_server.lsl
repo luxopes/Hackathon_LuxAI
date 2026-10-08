@@ -24,7 +24,7 @@ running.append(0)
 # Chat a stav jsou měněny pouze pod zámkem; pracovní vlákno píše přes progress.
 chat = agent.conversation()
 greeting = "Type what you want done. I will fetch the current offers, pick a seller and buy the service within budget. If no one offers it, I will tell you why.\nYou can also ask: What is on offer right now?"
-state = {"messages": [{"role": "Agent", "content": greeting}], "wallet": None, "budget": None, "status": "Ready", "busy": False, "tools": [], "payments": [], "notifications": [], "notification_seq": 0, "messages_revision": 0, "audit_revision": 0, "notifications_revision": 0}
+state = {"messages": [{"role": "Agent", "content": greeting}], "wallet": None, "budget": None, "status": "Ready", "busy": False, "tools": [], "payments": [], "messages_revision": 0, "audit_revision": 0}
 work = {"kind": "", "prompt": ""}
 streams = {}
 guard = {"last_chat": 0.0}
@@ -40,17 +40,6 @@ end
 function unlock():
     call atomic_add(flags, 3, 1)
     call atomic_xchg(flags, 0, 0)
-end
-
-# Notifikace pro zvonek: platby, refundace a dokončené tahy. Vždy pod zámkem.
-function add_notification(kind, text, job_id):
-    state["notification_seq"] += 1
-    state["notifications"].append({"id": "n-" + String(state["notification_seq"]), "kind": kind,
-        "text": text, "job_id": job_id, "time": time.time()})
-    if len(state["notifications"]) > 20:
-        state["notifications"] = state["notifications"][len(state["notifications"]) - 20:]
-    end
-    state["notifications_revision"] += 1
 end
 
 function append_message(role, text):
@@ -230,10 +219,8 @@ function progress(event):
         state["wallet"]["available"] += data["amount"]
         state["wallet"]["locked"] -= data["amount"]
         call append_message("Agent", "Delivery did not meet the contract. " + String(data["amount"]) + " Lux Coins refunded; selecting another seller.")
-        call add_notification("refund", String(data["amount"]) + " Lux Coins refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
     elif action == "PAYMENT_RELEASED":
         state["wallet"]["locked"] -= data["amount"]
-        call add_notification("paid", String(data["amount"]) + " Lux Coins paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
     elif action == "SESSION_CREATED":
         state["budget"] = data["budget"]
     elif action == "CHAT_DECISION":
@@ -255,7 +242,6 @@ function worker():
             end
             call lock()
             call append_message("Agent", text)
-            call add_notification("info", "Catalog refreshed: " + String(len(catalog["offers"])) + " active offers", "")
             state["status"] = "Catalog refreshed"
             state["busy"] = False
             call trim_state()
@@ -278,7 +264,6 @@ function worker():
         # Syrové chyby API nevypisujeme kvůli možným citlivým údajům.
         call lock()
         call append_message("Agent", "The request could not be completed. Check the connection and try again. If a purchase was already in progress, its state is on the marketplace.")
-        call add_notification("error", "A task could not be completed — nothing was paid", "")
         state["status"] = "Connection or agent-decision error"
         state["busy"] = False
         call unlock()
@@ -326,7 +311,6 @@ function snapshot(lite=False):
     messages = []
     tools = []
     payments = []
-    notifications = []
     if not lite:
         for message in state["messages"]:
             messages.append({"role": message["role"], "content": message["content"]})
@@ -337,15 +321,12 @@ function snapshot(lite=False):
         for entry in state["payments"]:
             payments.append(entry)
         end
-        for entry in state["notifications"]:
-            notifications.append(entry)
-        end
     end
     wallet = None
     if state["wallet"] != None:
         wallet = {"available": state["wallet"]["available"], "locked": state["wallet"]["locked"]}
     end
-    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
+    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "time": time.time()}
     call atomic_xchg(flags, 0, 0)
     return view
 end

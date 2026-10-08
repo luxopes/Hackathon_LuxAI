@@ -15,6 +15,17 @@ let autoQueue = [];
 let autoNextAt = 0;
 let noticeUntil = 0;
 let tasksFilter = "";
+let account = null;
+
+function token() { return localStorage.getItem("lux_token") || ""; }
+
+function apiFetch(path, options) {
+  const merged = Object.assign({}, options || {});
+  const headers = Object.assign({}, (options && options.headers) || {});
+  if (token()) headers.Authorization = "Bearer " + token();
+  merged.headers = headers;
+  return fetch(path, merged);
+}
 let searchTerm = "";
 let offers = { list: [], byId: {}, sellers: {} };
 
@@ -80,7 +91,7 @@ async function speakMessage(index) {
   speakPhase = "loading";
   refreshSpeakButtons();
   try {
-    const resp = await fetch("api/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index }) });
+    const resp = await apiFetch("api/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index }) });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       stopSpeech();
@@ -481,7 +492,7 @@ async function speakDelivery() {
   deliverySpeakState = "loading";
   refreshDeliverySpeak();
   try {
-    const resp = await fetch("api/speak", { method: "POST", headers: { "Content-Type": "application/json" },
+    const resp = await apiFetch("api/speak", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ job_id: deliveryJob }) });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
@@ -541,7 +552,7 @@ async function toggleRecording() {
       const form = new FormData();
       form.append("file", blob, "task.webm");
       form.append("model_id", "scribe_v2");
-      const resp = await fetch("api/transcribe", { method: "POST", body: form });
+      const resp = await apiFetch("api/transcribe", { method: "POST", body: form });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         status.textContent = (data.error || "Transcription failed") + " (HTTP " + resp.status + ")";
@@ -736,7 +747,7 @@ async function submitTask() {
   const message = (seller ? `Prefer ${seller.name}'s offer. ` : "") + description;
   $("task-dialog").close();
   try {
-    const resp = await fetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+    const resp = await apiFetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
     if (resp.status !== 200) {
       const err = await resp.json().catch(() => ({}));
       showNotice((err.error || "Error") + " · HTTP " + resp.status);
@@ -750,7 +761,7 @@ async function submitTask() {
 
 /* ---------- actions ---------- */
 async function post(path, body) {
-  return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  return apiFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 }
 
 async function sendMessage(text) {
@@ -841,6 +852,177 @@ function markNotificationsSeen() {
   const notifications = (fullState && fullState.notifications) || [];
   if (notifications.length) localStorage.setItem("notificationsSeen", notifications[notifications.length - 1].id);
   renderNotifications(fullState || {});
+}
+
+/* ---------- accounts: auth screens, welcome, guide, top-up ---------- */
+let authMode = "login";
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.querySelectorAll(".auth-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === mode));
+  $("auth-submit").textContent = mode === "register" ? "Create account" : "Sign in";
+  $("auth-password").setAttribute("autocomplete", mode === "register" ? "new-password" : "current-password");
+  $("auth-error").textContent = "";
+}
+
+function showAuth(message) {
+  $("auth-overlay").hidden = false;
+  $("auth-error").textContent = message || "";
+  $("auth-username").focus();
+}
+
+function hideAuth() { $("auth-overlay").hidden = true; }
+
+function applyAccount(user) {
+  account = user;
+  $("profile-name").textContent = user.username;
+  $("profile-avatar").textContent = user.username.slice(0, 1).toUpperCase();
+  $("pm-username").textContent = user.username;
+  $("pm-budget").textContent = "budget " + user.budget + " LC";
+  $("topup-current").textContent = "Current account budget: " + user.budget + " LC";
+}
+
+async function authSubmit(event) {
+  event.preventDefault();
+  const username = $("auth-username").value.trim().toLowerCase();
+  const password = $("auth-password").value;
+  $("auth-submit").disabled = true;
+  try {
+    const resp = await fetch("api/" + authMode, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      $("auth-error").textContent = data.error || "Sign-in failed (HTTP " + resp.status + ")";
+      return;
+    }
+    localStorage.setItem("lux_token", data.token);
+    applyAccount(data.user);
+    hideAuth();
+    $("auth-password").value = "";
+    if (!data.user.welcome_seen) {
+      $("welcome-name").textContent = data.user.username;
+      $("welcome-budget").textContent = data.user.budget;
+      $("welcome-overlay").hidden = false;
+    }
+    lastMessagesRev = -1;
+    lastAuditRev = -1;
+    lastNotificationsRev = -1;
+  } catch (error) {
+    $("auth-error").textContent = "Sign-in failed: " + error.message;
+  } finally {
+    $("auth-submit").disabled = false;
+  }
+}
+
+async function markWelcomeSeen() {
+  try { await post("api/welcome-seen"); } catch { /* not fatal */ }
+  if (account) account.welcome_seen = true;
+}
+
+function closeWelcome(withGuide) {
+  $("welcome-overlay").hidden = true;
+  markWelcomeSeen();
+  if (withGuide) startGuide();
+}
+
+const GUIDE_STEPS = [
+  { sel: "#hero-create", title: "Create a task", text: "Describe what you need in plain language. The agent reads the live catalog, picks a seller and locks the price in escrow." },
+  { sel: "#hero-auto", title: "Or run the auto demo", text: "One click runs the whole scenario: discovery, escrow, a failed delivery, a refund, a re-purchase and a paid receipt." },
+  { sel: "#tasks", title: "Your tasks", text: "Every purchase of this conversation. Click a row to open the delivered artifact, or the receipt for the full ledger trail." },
+  { sel: "#conversation", title: "The conversation", text: "The agent's replies plus a compact strip of the tool calls it really made." },
+  { sel: "#activity-list", title: "Live activity", text: "Every Flash, HTTP and LSL call with its duration. Click a name to see the raw input and output." },
+  { sel: "#profile", title: "Your account", text: "Top up simulated coins, open transactions, or sign out." },
+];
+let guideIndex = 0;
+
+function positionGuide() {
+  const step = GUIDE_STEPS[guideIndex];
+  const target = document.querySelector(step.sel);
+  if (!target) { nextGuide(1); return; }
+  const rect = target.getBoundingClientRect();
+  const spot = $("guide-spot");
+  const pad = 6;
+  spot.style.left = Math.max(4, rect.left - pad) + "px";
+  spot.style.top = Math.max(4, rect.top - pad) + "px";
+  spot.style.width = Math.min(window.innerWidth - 8, rect.width + pad * 2) + "px";
+  spot.style.height = (rect.height + pad * 2) + "px";
+  const bubble = $("guide-bubble");
+  const width = 310;
+  let left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16);
+  let top = rect.bottom + 14;
+  if (top + 210 > window.innerHeight) top = Math.max(16, rect.top - 210);
+  bubble.style.left = left + "px";
+  bubble.style.top = top + "px";
+  $("guide-step").textContent = (guideIndex + 1) + " / " + GUIDE_STEPS.length;
+  $("guide-title").textContent = step.title;
+  $("guide-text").textContent = step.text;
+  $("guide-prev").style.visibility = guideIndex === 0 ? "hidden" : "visible";
+  $("guide-next").textContent = guideIndex === GUIDE_STEPS.length - 1 ? "Finish" : "Next";
+}
+
+function startGuide() {
+  guideIndex = 0;
+  $("guide-overlay").hidden = false;
+  positionGuide();
+}
+
+function nextGuide(delta) {
+  guideIndex += delta;
+  if (guideIndex < 0) guideIndex = 0;
+  if (guideIndex >= GUIDE_STEPS.length) { $("guide-overlay").hidden = true; return; }
+  positionGuide();
+}
+
+async function openTopUp() {
+  $("profile-menu").hidden = true;
+  $("topup-status").textContent = "";
+  $("topup-dialog").showModal();
+}
+
+async function submitTopUp() {
+  const amount = parseInt($("topup-amount").value, 10);
+  if (!amount || amount < 1 || amount > 500) { $("topup-status").textContent = "Enter a whole number from 1 to 500."; return; }
+  $("topup-submit").disabled = true;
+  try {
+    const resp = await post("api/topup", { amount });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { $("topup-status").textContent = data.error || "Top-up failed (HTTP " + resp.status + ")"; return; }
+    applyAccount(data.user);
+    $("topup-status").textContent = "Topped up by " + amount + " LC. Budget is now " + data.user.budget + " LC.";
+    lastAuditRev = -1;
+  } catch (error) {
+    $("topup-status").textContent = "Top-up failed: " + error.message;
+  } finally {
+    $("topup-submit").disabled = false;
+  }
+}
+
+async function signOut() {
+  $("profile-menu").hidden = true;
+  try { await post("api/logout"); } catch { /* ignore */ }
+  localStorage.removeItem("lux_token");
+  account = null;
+  showAuth("Signed out.");
+}
+
+async function boot() {
+  if (!token()) { showAuth(); return; }
+  try {
+    const resp = await fetch("api/me", { headers: { Authorization: "Bearer " + token() } });
+    if (!resp.ok) { localStorage.removeItem("lux_token"); showAuth("Please sign in again."); return; }
+    const data = await resp.json();
+    applyAccount(data.user);
+    hideAuth();
+    if (!data.user.welcome_seen) {
+      $("welcome-name").textContent = data.user.username;
+      $("welcome-budget").textContent = data.user.budget;
+      $("welcome-overlay").hidden = false;
+    }
+  } catch {
+    showAuth("Cannot reach the server.");
+  }
 }
 
 /* ---------- search with results under the field ---------- */
@@ -1012,6 +1194,22 @@ $("delivery-speak").addEventListener("click", speakDelivery);
 $("task-mic").addEventListener("click", toggleRecording);
 $("delivery-close").addEventListener("click", () => { stopDeliveryAudio(); $("delivery-dialog").close(); });
 $("delivery-done").addEventListener("click", () => { stopDeliveryAudio(); $("delivery-dialog").close(); });
+document.querySelectorAll(".auth-tab").forEach((tab) => tab.addEventListener("click", () => setAuthMode(tab.dataset.mode)));
+$("auth-form").addEventListener("submit", authSubmit);
+$("welcome-guide").addEventListener("click", () => closeWelcome(true));
+$("welcome-skip").addEventListener("click", () => closeWelcome(false));
+$("guide-next").addEventListener("click", () => nextGuide(1));
+$("guide-prev").addEventListener("click", () => nextGuide(-1));
+$("guide-skip").addEventListener("click", () => { $("guide-overlay").hidden = true; });
+window.addEventListener("resize", () => { if (!$("guide-overlay").hidden) positionGuide(); });
+$("pm-topup").addEventListener("click", openTopUp);
+$("pm-logout").addEventListener("click", signOut);
+$("topup-close").addEventListener("click", () => $("topup-dialog").close());
+$("topup-cancel").addEventListener("click", () => $("topup-dialog").close());
+$("topup-submit").addEventListener("click", submitTopUp);
+document.querySelectorAll("#topup-presets button").forEach((button) => button.addEventListener("click", () => {
+  $("topup-amount").value = button.dataset.amount;
+}));
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });
@@ -1078,5 +1276,7 @@ voiceBox.addEventListener("change", () => {
   if (!autoVoice) stopSpeech();
 });
 renderQuick();
+setAuthMode("login");
 loadOffers();
 poll();
+boot();

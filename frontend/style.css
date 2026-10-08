@@ -317,3 +317,45 @@ button.mic:disabled{opacity:.6}
   .panel-head{flex-wrap:wrap}
   .filters{margin-left:0;order:3}
 }
+
+/* ---------- accounts, welcome, guide, top-up ---------- */
+.auth-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#f7f9fc,#e8eef7);display:grid;place-items:center;z-index:200;padding:20px}
+.auth-overlay[hidden]{display:none}
+.auth-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(16,24,40,.14);padding:30px;width:min(420px,100%)}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.auth-brand .mark{width:38px;height:38px;border-radius:11px;background:var(--ink);display:grid;place-items:center;flex:none}
+.auth-brand .mark svg{width:20px;height:20px;color:#fff}
+.auth-brand b{font-size:17px;display:block;line-height:1.2}
+.auth-brand small{color:var(--muted);font-size:11.5px}
+.auth-tabs{display:flex;gap:6px;background:#f2f4f8;padding:4px;border-radius:9px;margin-bottom:18px}
+.auth-tab{flex:1;border:0;background:transparent;padding:9px;border-radius:7px;font-size:13px;color:var(--muted)}
+.auth-tab.active{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.auth-error{color:#bf384d;font-size:12px;min-height:16px;margin:0 0 10px}
+.auth-note{color:var(--muted);font-size:11.5px;margin-top:14px;text-align:center;line-height:1.5}
+.welcome-overlay{position:fixed;inset:0;background:rgba(10,14,20,.55);backdrop-filter:blur(6px);display:grid;place-items:center;z-index:210;padding:20px}
+.welcome-overlay[hidden]{display:none}
+.welcome-card{background:#fff;border-radius:16px;padding:34px;width:min(520px,100%);text-align:center;box-shadow:0 30px 90px rgba(16,24,40,.3);animation:welcome-in .5s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes welcome-in{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}
+.welcome-mark{width:64px;height:64px;border-radius:18px;background:var(--ink);display:grid;place-items:center;margin:0 auto 18px;animation:mark-pop .7s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes mark-pop{0%{transform:scale(.4) rotate(-14deg);opacity:0}60%{transform:scale(1.08) rotate(3deg)}100%{transform:none;opacity:1}}
+.welcome-mark svg{width:32px;height:32px;color:#3ee07f}
+.welcome-card h2{margin:0 0 10px;font-size:26px;letter-spacing:-.8px}
+.welcome-card p{color:#4c5b70;line-height:1.6;margin:0 0 22px}
+.welcome-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.guide-overlay{position:fixed;inset:0;background:rgba(10,14,20,.25);z-index:220}
+.guide-overlay[hidden]{display:none}
+.guide-spot{position:absolute;border:2px solid #078a4d;border-radius:12px;box-shadow:0 0 0 9999px rgba(10,14,20,.55);transition:all .25s ease;pointer-events:none}
+.guide-bubble{position:absolute;background:#fff;border-radius:12px;padding:18px;width:310px;box-shadow:0 24px 60px rgba(16,24,40,.28);transition:all .25s ease}
+.guide-step{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.guide-bubble h3{margin:6px 0 6px;font-size:16px}
+.guide-bubble p{margin:0 0 14px;color:#4c5b70;font-size:13px;line-height:1.55}
+.guide-actions{display:flex;gap:8px;align-items:center}
+.guide-spacer{flex:1}
+.guide-actions button{padding:7px 12px;font-size:12.5px}
+.topup-presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.topup-presets button{padding:9px 14px;font-size:13px;border-radius:8px}
+#topup-amount{width:100%;border:1px solid #dbe1e8;border-radius:6px;padding:11px 12px}
+.pm-head{padding:8px 11px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.pm-head b{display:block;font-size:13px}
+.pm-head span{color:var(--muted);font-size:11.5px}
+.pm-danger{color:#bf384d}

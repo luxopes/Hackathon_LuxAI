@@ -543,6 +543,22 @@ class Market:
         except (OSError, subprocess.SubprocessError, sqlite3.Error):
             return
 
+    def top_up(self, session_id, amount):
+        # Simulované dobití peněženky: nový řádek v ledgeru, žádná změna historie.
+        if type(amount) is not int or not 1 <= amount <= 1000:
+            raise Problem(400, "top-up must be an integer from 1 to 1000 Lux Coins")
+        with self.transaction() as db:
+            session = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if not session:
+                raise Problem(404, "session not found")
+            wallet = db.execute("SELECT * FROM wallets WHERE id = ?", (session_id,)).fetchone()
+            if wallet["available"] + wallet["locked"] + amount > 10000:
+                raise Problem(409, "wallet balance limit reached")
+            db.execute("UPDATE wallets SET available = available + ? WHERE id = ?", (amount, session_id))
+            db.execute("UPDATE sessions SET budget = budget + ? WHERE id = ?", (amount, session_id))
+            self.record(db, session_id, None, "TOPUP_ISSUED", amount)
+        return self.session(session_id)
+
     def finish(self, job_id, refund):
         with self.transaction() as db:
             row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
@@ -676,6 +692,7 @@ class Market:
     # Veřejný doklad o platbě: kompletní auditní stopa jedné zakázky.
     LEDGER_LABELS = {
         "LUX_COINS_ISSUED": ("Test credits issued to the buyer wallet", "issue"),
+        "TOPUP_ISSUED": ("Wallet topped up with simulated Lux Coins", "issue"),
         "ESCROW_LOCKED": ("Funds locked in escrow for the job", "escrow"),
         "RESULT_DELIVERED": ("Seller delivery recorded by the marketplace", "delivery"),
         "DELIVERY_FAILED": ("Seller delivery failed or was invalid", "failure"),
@@ -705,7 +722,7 @@ class Market:
         job_moves = []
         for row in ledger_rows:
             action, amount = row["action"], row["amount"]
-            if action == "LUX_COINS_ISSUED":
+            if action == "LUX_COINS_ISSUED" or action == "TOPUP_ISSUED":
                 available += amount
             elif action == "ESCROW_LOCKED":
                 available -= amount
@@ -893,6 +910,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(201, market.create_session(payload))
             if path == "/api/jobs":
                 return self.send(201, market.buy(payload))
+            if path.startswith("/api/sessions/") and path.endswith("/topup"):
+                session_id = path.removeprefix("/api/sessions/").removesuffix("/topup")
+                amount = payload.get("amount")
+                return self.send(200, market.top_up(session_id, amount))
             if path.startswith("/api/jobs/"):
                 parts = path.removeprefix("/api/jobs/").split("/")
                 if len(parts) == 2:

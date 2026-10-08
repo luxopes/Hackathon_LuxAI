@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
 <aside class="sidebar">
@@ -59,11 +59,14 @@
     </div>
   </div>
   <div class="profile-wrap">
-    <button class="profile" type="button" id="profile"><span class="avatar">A</span><span>Antonin</span><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="profile" type="button" id="profile"><span class="avatar" id="profile-avatar">?</span><span id="profile-name">Guest</span><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
     <div class="profile-menu" id="profile-menu" hidden>
+      <div class="pm-head"><b id="pm-username">—</b><span id="pm-budget">—</span></div>
+      <button type="button" id="pm-topup">Top up coins ＋</button>
       <a href="../payments">Payments &amp; receipts</a>
       <a href="../docs">Documentation</a>
       <button type="button" id="profile-new">New conversation</button>
+      <button type="button" id="pm-logout" class="pm-danger">Sign out</button>
     </div>
   </div>
 </header>
@@ -214,6 +217,72 @@
     <button class="primary" type="button" id="delivery-done">Close</button>
   </div>
 </dialog>
-<script src="app.js?v=20"></script>
+<div class="auth-overlay" id="auth-overlay" hidden>
+  <div class="auth-card">
+    <div class="auth-brand"><span class="mark"><svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg></span>
+      <div><b>Lux Coins</b><small>Agentic Economy</small></div>
+    </div>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" data-mode="login">Sign in</button>
+      <button type="button" class="auth-tab" data-mode="register">Create account</button>
+    </div>
+    <form id="auth-form">
+      <label>Username<input id="auth-username" autocomplete="username" placeholder="your name" required></label>
+      <label>Password<input id="auth-password" type="password" autocomplete="current-password" placeholder="at least 8 characters" required></label>
+      <p class="auth-error" id="auth-error"></p>
+      <button class="primary full big" type="submit" id="auth-submit">Sign in</button>
+    </form>
+    <p class="auth-note">Accounts are stored on this server; coins are simulated Lux Coins and have no monetary value.</p>
+  </div>
+</div>
+
+<div class="welcome-overlay" id="welcome-overlay" hidden>
+  <div class="welcome-card">
+    <div class="welcome-mark"><svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg></div>
+    <h2>Welcome, <span id="welcome-name">hacker</span>!</h2>
+    <p>You got <b id="welcome-budget">30</b> simulated Lux Coins. The agent discovers sellers, locks the price in escrow, verifies the delivery and resolves disputes on its own.</p>
+    <div class="welcome-actions">
+      <button class="primary" type="button" id="welcome-guide">Show me around</button>
+      <button type="button" id="welcome-skip">Start exploring</button>
+    </div>
+  </div>
+</div>
+
+<div class="guide-overlay" id="guide-overlay" hidden>
+  <div class="guide-spot" id="guide-spot"></div>
+  <div class="guide-bubble" id="guide-bubble">
+    <span class="guide-step" id="guide-step">1 / 6</span>
+    <h3 id="guide-title">Title</h3>
+    <p id="guide-text">Text</p>
+    <div class="guide-actions">
+      <button type="button" id="guide-skip">Skip</button>
+      <span class="guide-spacer"></span>
+      <button type="button" id="guide-prev">Back</button>
+      <button class="primary" type="button" id="guide-next">Next</button>
+    </div>
+  </div>
+</div>
+
+<dialog id="topup-dialog">
+  <div class="dialog-heading">
+    <div><span class="eyebrow">SIMULATED CREDITS</span><h2>Top up coins</h2></div>
+    <button class="icon-button" type="button" id="topup-close" aria-label="Close">×</button>
+  </div>
+  <p class="form-note" id="topup-current">Current account budget: —</p>
+  <div class="topup-presets" id="topup-presets">
+    <button type="button" data-amount="10">+10</button>
+    <button type="button" data-amount="25">+25</button>
+    <button type="button" data-amount="50">+50</button>
+    <button type="button" data-amount="100">+100</button>
+  </div>
+  <label>Custom amount (1–500)<input id="topup-amount" type="number" min="1" max="500" step="1" value="25"></label>
+  <p class="text-muted" id="topup-status"></p>
+  <div class="dialog-footer">
+    <button type="button" id="topup-cancel">Cancel</button>
+    <button class="primary" type="button" id="topup-submit">Top up</button>
+  </div>
+</dialog>
+
+<script src="app.js?v=21"></script>
 </body>
 </html>

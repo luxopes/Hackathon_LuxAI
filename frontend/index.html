@@ -3,55 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lux Coins · Agentic Economy · Live Agent Console</title>
-<link rel="stylesheet" href="style.css?v=9">
+<title>Agent console · Lux Coins</title>
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
-<header id="topbar">
-  <div class="brand">
-    <span class="logo">LUX COINS</span>
-    <span class="sub">Agentic Economy · live agent console</span>
-    <span class="badge">SIMULATED PAYMENTS</span>
-  </div>
-  <div class="stats">
-    <div class="stat"><label>Available</label><b id="stat-available">—</b></div>
-    <div class="stat"><label>In escrow</label><b id="stat-locked">—</b></div>
-    <div class="stat"><label>Budget</label><b id="stat-budget">—</b></div>
-  </div>
-  <div class="tx">
-    <label>Last movement</label>
-    <span id="tx-last">No transactions yet</span>
-  </div>
-  <div class="conn">
-    <span id="conn-dot" class="dot"></span>
-    <span id="conn-status">Connecting…</span>
-  </div>
-</header>
-<main>
-  <section id="chat-panel">
-    <div id="messages"></div>
-    <div id="composer">
-      <textarea id="input" rows="3" placeholder="Type a request… (Enter to send, Shift+Enter for a new line)" maxlength="1000"></textarea>
-      <div class="buttons">
-        <button id="btn-send" class="primary">Send</button>
-        <button id="btn-stop" hidden>Stop</button>
-        <button id="btn-auto" title="Runs a scripted end-to-end scenario: discovery, purchase, dispute, settlement — no further clicks needed">▶ Auto demo</button>
-        <button id="btn-catalog" title="Fetches the current offer catalog without purchasing">Catalog</button>
-        <button id="btn-new" class="danger" title="Discards the conversation history; wallets stay on the marketplace">New conversation</button>
-        <label class="auto-voice" title="Read every finished agent reply aloud (ElevenLabs text-to-speech)"><input type="checkbox" id="chk-voice"> auto voice</label>
-      </div>
-      <div id="status-line"></div>
-    </div>
-  </section>
-  <aside id="right-panel">
-    <nav class="tabs">
-      <button data-tab="tools" class="active">Tools <span id="cnt-tools">0</span></button>
-      <button data-tab="payments">Payments <span id="cnt-payments">0</span></button>
-      <button data-tab="system">System</button>
+<div class="layout">
+  <aside class="side">
+    <div class="brand"><span class="mark"></span><span class="name">LUX</span></div>
+    <div class="tagline">Autonomous value flow.</div>
+    <nav class="nav">
+      <a href="../"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg><span>Overview</span></a>
+      <a href="../payments"><svg viewBox="0 0 24 24"><path d="M3 8.5 12 4l9 4.5-9 4.5z"/><path d="M3 12.5 12 17l9-4.5"/><path d="M3 16.5 12 21l9-4.5"/></svg><span>Payments</span></a>
+      <a class="active" href="./"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.6-3.4 2.9-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><path d="M16.5 9.2h4M18.5 7.2v4"/></svg><span>Agents</span></a>
+      <a href="https://github.com/luxopes/Hackathon_LuxAI"><svg viewBox="0 0 24 24"><path d="m8.5 8-4 4 4 4M15.5 8l4 4-4 4"/></svg><span>Developers</span></a>
+      <div class="gap"></div>
+      <a href="https://github.com/luxopes/Hackathon_LuxAI/tree/main/backend/docs"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15.5H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M8 7.5h8M8 11h6"/></svg><span>Docs</span></a>
+      <a href="../health"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12L16 12h5"/></svg><span>Status</span></a>
+      <a href="https://github.com/luxopes/Hackathon_LuxAI/issues"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.6v.3"/><circle cx="12" cy="16.6" r=".9" fill="currentColor" stroke="none"/></svg><span>Support</span></a>
     </nav>
-    <div id="tab-content"></div>
+    <div class="me"><span class="avatar">L</span><div><div class="who">Lux Coins</div><div class="sub">Agentic economy · simulated payments</div></div></div>
   </aside>
-</main>
-<script src="app.js?v=9"></script>
+  <div class="main">
+    <header class="top">
+      <div class="crumbs"><b>Agents</b><span class="sep">›</span><span>Console</span></div>
+      <div class="wallet">
+        <span class="wstat"><label>Available</label><b id="stat-available">—</b></span>
+        <span class="wstat"><label>In escrow</label><b id="stat-locked">—</b></span>
+        <span class="wstat"><label>Budget</label><b id="stat-budget">—</b></span>
+      </div>
+      <div class="conn"><span id="conn-dot" class="dot"></span><span id="conn-status">Connecting…</span></div>
+      <a class="btn light" href="../payments">Payments ↗</a>
+    </header>
+    <main class="content">
+      <div class="hero-mini">
+        <div>
+          <div class="kicker"><span>Agent console</span><span class="pill neutral">SIMULATED PAYMENTS</span></div>
+          <h1>Buy work from agents</h1>
+          <p class="lede">The agent discovers offers, pays through escrow, verifies the delivery and resolves
+          disputes on its own. Last movement: <span class="mono" id="tx-last">No transactions yet</span></p>
+        </div>
+      </div>
+      <div class="console-grid">
+        <section class="card chat-card">
+          <div class="card-head"><span class="ico"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg></span>
+            <div><h2>Conversation</h2><div class="sub">Flash resolves each request against the live catalog</div></div>
+          </div>
+          <div id="messages"></div>
+          <div id="composer">
+            <textarea id="input" rows="3" placeholder="Type a request… (Enter to send, Shift+Enter for a new line)" maxlength="1000"></textarea>
+            <div class="buttons">
+              <button id="btn-send" class="btn dark">Send</button>
+              <button id="btn-stop" class="btn light" hidden>Stop</button>
+              <button id="btn-auto" class="btn light" title="Runs a scripted end-to-end scenario: discovery, purchase, dispute, settlement — no further clicks needed">▶ Auto demo</button>
+              <button id="btn-catalog" class="btn light" title="Fetches the current offer catalog without purchasing">Catalog</button>
+              <button id="btn-new" class="btn light danger" title="Discards the conversation history; wallets stay on the marketplace">New conversation</button>
+              <label class="auto-voice" title="Read every finished agent reply aloud (ElevenLabs text-to-speech)"><input type="checkbox" id="chk-voice"> auto voice</label>
+            </div>
+            <div id="status-line"></div>
+          </div>
+        </section>
+        <aside class="card tools-card">
+          <nav class="tabs">
+            <button data-tab="tools" class="active">Tools <span id="cnt-tools">0</span></button>
+            <button data-tab="payments">Payments <span id="cnt-payments">0</span></button>
+            <button data-tab="system">System</button>
+          </nav>
+          <div id="tab-content"></div>
+        </aside>
+      </div>
+      <div class="foot"><span>© 2026 Lux Protocol · <a href="../payments">Payments</a> · <a href="../health">Status</a> · simulated Lux Coins, no blockchain</span><span>Built for an agentic economy.</span></div>
+    </main>
+  </div>
+</div>
+<script src="app.js?v=10"></script>
 </body>
 </html>

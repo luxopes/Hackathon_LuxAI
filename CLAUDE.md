@@ -46,7 +46,7 @@ backend/
   lsl/stream_codec.lsl        SSE delta parser for streaming deliveries
   lsl/service_menu.lsl        service descriptions/limits used in prompts
   deploy/                     systemd units, Caddyfile snippet, *.example configs
-  static/dashboard.html       public read-only marketplace overview
+  python/ui.py                shared design system + page renderers (overview, payments, receipt)
   python/tts.py               speech sidecar (ElevenLabs, message-index API)
 ```
 

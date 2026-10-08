@@ -29,9 +29,8 @@ seller instances (behaviour comes from the environment file).
 
 ```sh
 install -d -m 750 -o root -g proofpay /opt/proofpay-mvp
-install -m 644 python/marketplace.py python/services.py /opt/proofpay-mvp/
+install -m 644 python/marketplace.py python/services.py python/ui.py /opt/proofpay-mvp/
 install -m 755 build/seller build/web-server /opt/proofpay-mvp/
-install -m 644 static/dashboard.html /opt/proofpay-mvp/dashboard.html
 
 # frontend statics served by the console service
 install -d -m 750 -o root -g proofpay /opt/proofpay-mvp/web

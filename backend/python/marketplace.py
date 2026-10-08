@@ -17,7 +17,9 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.parse import urlencode, quote
+from urllib.parse import parse_qs, urlencode, quote
+
+import ui
 
 from services import CURRENCY, SERVICES, validate_artifact
 
@@ -576,112 +578,6 @@ class Market:
                 "services": sorted(services.values(), key=lambda s: s["total"], reverse=True),
                 "invariant": {"issued": issued, "accounted": held, "holds": issued == held}}
 
-    def payments_html(self):
-        data = self.payments()
-        esc = html.escape
-        currency = esc(data["currency"])
-        summary = data["summary"]
-        invariant = data["invariant"]
-        money = lambda n: f"{n} {currency}"
-        state_chip = lambda state: f"<span class='chip {'ok' if state == 'PAID' else 'warn' if state == 'REFUNDED' else ''}'>{esc(state)}</span>"
-        rows = []
-        for payment in data["payments"]:
-            rows.append(
-                f"<tr class=payment-row data-state='{esc(payment['state'])}' data-search='{esc((payment['id'] + ' ' + payment['session_id'] + ' ' + payment['seller_id'] + ' ' + (payment['capability'] or '')).lower())}'>"
-                f"<td class=mono>{esc(payment['created_at'])}</td>"
-                f"<td class=mono><a href='receipt/{esc(payment['id'])}'>{esc(payment['id'])}</a></td>"
-                f"<td class=mono>{esc(payment['seller_id'])}</td>"
-                f"<td>{esc(payment['capability'] or '')}</td>"
-                f"<td class=num>{money(payment['price'])}</td>"
-                f"<td>{state_chip(payment['state'])}</td>"
-                f"<td class=num>{payment['settled_in_seconds'] if payment['settled_in_seconds'] is not None else '—'}{' s' if payment['settled_in_seconds'] is not None else ''}</td>"
-                f"<td class=mono>{' → '.join(esc(t['action']) for t in payment['transactions'])}</td>"
-                f"<td><a href='receipt/{esc(payment['id'])}'>receipt ↗</a></td>"
-                "</tr>")
-        revenue_rows = "".join(
-            f"<tr><td class=mono>{esc(r['seller'])}</td><td class=num>{r['paid_count']}</td><td class=num>{money(r['paid_total'])}</td>"
-            f"<td class=num>{r['refunded_count']}</td><td class=num>{money(r['refunded_total'])}</td></tr>"
-            for r in data["revenue"])
-        service_rows = "".join(
-            f"<tr><td>{esc(s['capability'] or '')}</td><td class=num>{s['count']}</td><td class=num>{money(s['total'])}</td></tr>"
-            for s in data["services"])
-        css = """
-:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e8edf8}
-*{box-sizing:border-box}body{max-width:1240px;margin:auto;padding:28px 20px 60px}
-h1{font-size:clamp(28px,4vw,44px);letter-spacing:-1px;margin:6px 0}h2{font-size:19px;margin:30px 0 8px}
-a{color:#a9bfff}.muted{color:#9daac4}.mono{font-family:ui-monospace,monospace;font-size:12.5px;overflow-wrap:anywhere}
-.num{font-variant-numeric:tabular-nums;text-align:right}
-.badge{display:inline-block;border:1px solid #586275;background:#242b3c;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.6px}
-.chip{display:inline-block;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700}
-.chip.ok{background:#12351f;color:#85edb2}.chip.warn{background:#3a3415;color:#f9cf71}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:16px}
-.card{background:#141d32;border:1px solid #29364e;border-radius:14px;padding:14px 16px}
-.card label{display:block;font-size:11px;color:#9daac4;letter-spacing:.4px}.card b{font-size:22px}
-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
-th{color:#9daac4;text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
-td,th{padding:8px;border-bottom:1px solid #29364e;vertical-align:top}
-tr.hidden{display:none}
-.controls{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
-input,select{background:#141d32;color:#e8edf8;border:1px solid #586275;border-radius:9px;padding:8px 10px;font-size:13px}
-.notice{border-left:3px solid #fbbf24;background:#1e2435;padding:12px 16px;border-radius:8px;margin-top:16px;font-size:13px;line-height:1.6}
-.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-"""
-        return f"""<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Payments · Lux Coins marketplace</title><style>{css}</style>
-<div class="row"><span class="badge">PAYMENTS</span><span class="badge" style="color:#ff9393">SIMULATED PAYMENTS</span>
-<span class="chip {'ok' if invariant['holds'] else 'warn'}">INVARIANT {'HOLDS' if invariant['holds'] else 'BROKEN'}</span>
-<span class="muted mono">{invariant['issued']} issued == {invariant['accounted']} accounted</span></div>
-<h1>All payments</h1>
-<p class="muted">Every agent purchase settled on this marketplace, newest first. Generated {esc(data['generated_at'])}.
-Payments are simulated Lux Coins in a central SQLite ledger; amounts, IDs and hashes mirror a real payment rail.
-Open any row's receipt for the complete audit trail.</p>
-
-<div class="cards">
-<div class="card"><label>Payments</label><b>{summary['total']}</b></div>
-<div class="card"><label>Paid</label><b style="color:#85edb2">{summary['paid_count']} · {money(summary['paid_total'])}</b></div>
-<div class="card"><label>Refunded</label><b style="color:#f9cf71">{summary['refunded_count']} · {money(summary['refunded_total'])}</b></div>
-<div class="card"><label>Success rate</label><b>{summary['success_rate'] if summary['success_rate'] is not None else '—'}{' %' if summary['success_rate'] is not None else ''}</b></div>
-</div>
-
-<h2>Sellers</h2>
-<table><tr><th>Seller</th><th class="num">Paid jobs</th><th class="num">Revenue</th><th class="num">Refunded jobs</th><th class="num">Refunded</th></tr>{revenue_rows}</table>
-
-<h2>Services</h2>
-<table><tr><th>Service</th><th class="num">Paid jobs</th><th class="num">Revenue</th></tr>{service_rows}</table>
-
-<h2>Payment list</h2>
-<div class="controls">
-<input id="q" type="search" placeholder="Search id, session, seller, service…" style="min-width:280px">
-<select id="state"><option value="">All states</option><option value="PAID">Paid</option><option value="REFUNDED">Refunded</option></select>
-<span class="muted" id="count"></span>
-</div>
-<table id="payments">
-<tr><th>Created (UTC)</th><th>Payment ID</th><th>Seller</th><th>Service</th><th class="num">Amount</th><th>State</th><th class="num">Settled in</th><th>Ledger movements</th><th></th></tr>
-{''.join(rows)}
-</table>
-<div class="notice"><strong>Honest disclosure.</strong> Simulated test credits only — no real money and no blockchain.
-“Nothing pays twice” is enforced by unique idempotency keys and database constraints; “caps hold” by
-wallet budgets and the invariant above.</div>
-<p class="muted" style="margin-top:24px"><a href="..">← marketplace overview</a> · <a href="../web/">agent console</a> · <a href="../api/payments">/api/payments</a></p>
-<script>
-const rows = [...document.querySelectorAll('.payment-row')];
-const q = document.getElementById('q'), state = document.getElementById('state'), count = document.getElementById('count');
-function apply() {{
-  const needle = q.value.trim().toLowerCase(), wanted = state.value;
-  let shown = 0;
-  for (const row of rows) {{
-    const okSearch = !needle || row.dataset.search.includes(needle);
-    const okState = !wanted || row.dataset.state === wanted;
-    row.classList.toggle('hidden', !(okSearch && okState));
-    if (okSearch && okState) shown++;
-  }}
-  count.textContent = shown + ' / ' + rows.length;
-}}
-q.addEventListener('input', apply); state.addEventListener('change', apply); apply();
-</script>
-</html>"""
-
     # Veřejný doklad o platbě: kompletní auditní stopa jedné zakázky.
     LEDGER_LABELS = {
         "LUX_COINS_ISSUED": ("Test credits issued to the buyer wallet", "issue"),
@@ -747,164 +643,6 @@ q.addEventListener('input', apply); state.addEventListener('change', apply); app
                                    "balanced": escrow_locked == settled == job["price"] and credits >= 0,
                                    "movements": len(job_moves)},
                 "invariant": {"issued": minted, "accounted": held, "holds": minted == held}}
-
-    def receipt_html(self, job_id):
-        data = self.receipt(job_id)
-        job, payment, verification = data["job"], data["payment"], data["verification"]
-        esc = html.escape
-        money = lambda n: f"{n} {esc(data['currency'])}"
-        balances = {entry["ledger_id"]: entry for entry in data["timeline"]}
-        state = job["state"]
-        state_cls = "ok" if state == "PAID" else "warn" if state == "REFUNDED" else ""
-        rows = []
-        for tx in payment["transactions"]:
-            balance = balances.get(tx["ledger_id"], {})
-            rows.append(
-                "<tr>"
-                f"<td class=mono>{esc(tx['id'])}</td>"
-                f"<td class=num>{tx['ledger_id']}</td>"
-                f"<td><b>{esc(tx['action'])}</b></td>"
-                f"<td class=num>{money(tx['amount'])}</td>"
-                f"<td class=mono>{esc(tx['from_wallet'])} · {esc(tx['from_account'])}</td>"
-                f"<td class=mono>{esc(tx['to_wallet'])} · {esc(tx['to_account'])}</td>"
-                f"<td class=num>{balance.get('available_after', '—')}</td>"
-                f"<td class=num>{balance.get('locked_after', '—')}</td>"
-                f"<td class=mono>{esc(tx['created_at'])}</td>"
-                "</tr>")
-        timeline_rows = []
-        previous = None
-        for entry in data["job_timeline"]:
-            delta = ""
-            if previous is not None:
-                delta = f"+{entry['created'] - previous:.3f}s"
-            previous = entry["created"]
-            timeline_rows.append(
-                "<tr>"
-                f"<td class=num>{entry['ledger_id']}</td>"
-                f"<td><span class='badge {esc(entry['kind'])}'>{esc(entry['kind'])}</span> {esc(entry['label'])}</td>"
-                f"<td class=num>{money(entry['amount']) if entry['amount'] else '—'}</td>"
-                f"<td class=mono>{esc(entry['created_at'])} <span class=muted>{delta}</span></td>"
-                "</tr>")
-        checks = verification.get("checks") or []
-        check_rows = "".join(
-            f"<tr><td class=mono>{esc(c['case_id'])}</td><td class=num>{c['expected_cents']}</td>"
-            f"<td class=num>{c['observed_cents']}</td>"
-            f"<td>{'<span class=\'badge ok\'>PASSED</span>' if c['passed'] else '<span class=\'badge failure\'>FAILED</span>'}</td></tr>"
-            for c in checks if type(c) is dict)
-        reasons = verification.get("reasons") or []
-        reason_html = "".join(f"<li>{esc(r)}</li>" for r in reasons) or "<li>No discrepancies found.</li>"
-        receipts = "".join(f"<li class=mono>{esc(r)}</li>" for r in payment["verification_receipts"]) or "<li class=muted>None</li>"
-        artifact = (job.get("result") or {}).get("artifact") or {}
-        delivery_preview = ""
-        if artifact:
-            preview = artifact.get("content") or artifact.get("summary") or ""
-            delivery_preview = (f"<h3>Delivery preview</h3><pre class=preview>{esc(preview[:1500])}</pre>"
-                                + ("<p class=muted>…truncated; the full artifact is in the raw JSON below.</p>" if len(preview) > 1500 else ""))
-        reconciliation = data["reconciliation"]
-        invariant = data["invariant"]
-        raw = esc(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
-        contract = esc(json.dumps(job["contract"], ensure_ascii=False, indent=2, sort_keys=True))
-        css = """
-:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e8edf8}
-*{box-sizing:border-box}body{max-width:1180px;margin:auto;padding:28px 20px 60px}
-h1{font-size:clamp(28px,4vw,44px);letter-spacing:-1px;margin:6px 0}h2{font-size:20px;margin:34px 0 10px}
-h3{font-size:15px;margin:18px 0 6px;color:#c7d3ea}
-a{color:#a9bfff}.muted{color:#9daac4}.mono{font-family:ui-monospace,monospace;font-size:12.5px;overflow-wrap:anywhere}
-.num{font-variant-numeric:tabular-nums;text-align:right}
-.badge{display:inline-block;border:1px solid #586275;background:#242b3c;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.6px}
-.badge.ok,.badge.payment{color:#85edb2;border-color:#2f6b45}.badge.warn,.badge.escrow{color:#f9cf71;border-color:#7a6327}
-.badge.failure,.badge.refund{color:#ff9393;border-color:#7c4a4a}.badge.issue,.badge.delivery{color:#a9bfff}
-.chip{display:inline-block;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700}
-.chip.ok{background:#12351f;color:#85edb2}.chip.warn{background:#3a3415;color:#f9cf71}
-.card{background:#141d32;border:1px solid #29364e;border-radius:14px;padding:18px;margin-top:14px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.fact label{display:block;font-size:11px;color:#9daac4;letter-spacing:.4px}.fact b,.fact .mono{font-size:14px}
-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
-th{color:#9daac4;text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
-td,th{padding:9px 8px;border-bottom:1px solid #29364e;vertical-align:top}
-pre{background:#0b1020;border:1px solid #29364e;border-radius:10px;padding:12px;overflow:auto;font:12px ui-monospace,monospace;max-height:420px}
-pre.preview{max-height:260px;white-space:pre-wrap}
-details{margin-top:12px}summary{cursor:pointer;color:#a9bfff}
-.notice{border-left:3px solid #fbbf24;background:#1e2435;padding:12px 16px;border-radius:8px;margin-top:14px;font-size:13px;line-height:1.6}
-.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-ul{margin:6px 0 0 18px;padding:0}
-"""
-        generated = esc(data["generated_at"])
-        return f"""<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Payment receipt · {esc(job_id)}</title><style>{css}</style>
-<div class="row"><span class="badge">PAYMENT RECEIPT</span>
-<span class="badge failure">SIMULATED PAYMENTS</span>
-<span class="chip {state_cls}">{esc(state)}</span>
-<span class="muted mono">{esc(job_id)}</span></div>
-<h1>{money(job['price'])}</h1>
-<p class="muted">Complete audit trail of one agent-to-agent purchase: contract, escrow,
-verification, settlement and the central ledger entries behind every movement.
-Generated {generated}.</p>
-<div class="card grid">
-<div class="fact"><label>Amount</label><b>{money(job['price'])}</b></div>
-<div class="fact"><label>Status</label><b>{esc(state)}</b></div>
-<div class="fact"><label>Payer (buyer wallet)</label><div class="mono">{esc(job['session_id'])}</div></div>
-<div class="fact"><label>Payee (seller)</label><div class="mono">{esc(job['seller_id'])}</div></div>
-<div class="fact"><label>Offer / service</label><div class="mono">{esc(job['offer_id'])} · {esc(job['contract'].get('capability', ''))}</div></div>
-<div class="fact"><label>Idempotency key</label><div class="mono">{esc(job['idempotency_key'])}</div></div>
-<div class="fact"><label>Created (UTC)</label><div class="mono">{esc(data['session']['created_at'])}</div></div>
-<div class="fact"><label>Method</label><div>Central SQLite ledger · escrow · double-entry</div></div>
-<div class="fact"><label>Session</label><div class="mono">{esc(data['session']['title'])}<br>budget {money(data['session']['budget'])} · fixture {esc(data['session']['fixture'])}</div></div>
-<div class="fact"><label>Buyer wallet now</label><div class="mono">available {data['wallets']['buyer']['available']} · locked {data['wallets']['buyer']['locked']}</div></div>
-<div class="fact"><label>Seller wallet now</label><div class="mono">available {data['wallets']['seller']['available']} · locked {data['wallets']['seller']['locked']}</div></div>
-<div class="fact"><label>Contract SHA-256</label><div class="mono">{esc(payment['contract_sha256'])}</div></div>
-</div>
-
-<h2>Money movement</h2>
-<div class="card"><table>
-<tr><th>Transaction ID</th><th class="num">Ledger #</th><th>Action</th><th class="num">Amount</th><th>From</th><th>To</th><th class="num">Buyer avail. after</th><th class="num">Buyer locked after</th><th>Timestamp (UTC)</th></tr>
-{''.join(rows)}
-</table>
-<p class="muted">Every row is an immutable ledger record; the buyer balance columns are reconstructed
-from the session ledger (Lux Coins issued → escrow locked → released or refunded).</p></div>
-
-<h2>Settlement lifecycle</h2>
-<div class="card"><table>
-<tr><th class="num">Ledger #</th><th>Event</th><th class="num">Amount</th><th>When (UTC, + since previous)</th></tr>
-{''.join(timeline_rows)}
-</table>
-<p class="muted">One settlement per job: a verified delivery releases the escrow, an invalid one refunds it.
-The unique idempotency key and database constraints make a second charge impossible.</p></div>
-
-<h2>Contract</h2>
-<div class="card"><pre>{contract}</pre>
-<p class="muted">Contract SHA-256: <span class="mono">{esc(payment['contract_sha256'])}</span></p></div>
-
-<h2>Verification</h2>
-<div class="card">
-<div class="row"><span class="chip {'ok' if verification['valid_delivery'] else 'warn'}">{'VALID DELIVERY' if verification['valid_delivery'] else 'NOT VERIFIED'}</span>
-<span class="muted">{esc(verification.get('scope', ''))}</span></div>
-<h3>Findings</h3><ul>{reason_html}</ul>
-{('<h3>Cart checks</h3><table><tr><th>Case</th><th class="num">Expected (cents)</th><th class="num">Observed (cents)</th><th>Result</th></tr>' + check_rows + '</table>') if check_rows else ''}
-<h3>Execution receipts</h3><ul>{receipts}</ul>
-<p class="muted">Delivery SHA-256: <span class="mono">{esc(payment['result_sha256'] or '—')}</span></p>
-{delivery_preview}
-</div>
-
-<h2>Integrity</h2>
-<div class="card">
-<div class="row"><span class="chip {'ok' if reconciliation['balanced'] else 'warn'}">ESCROW RECONCILIATION {'BALANCED' if reconciliation['balanced'] else 'MISMATCH'}</span>
-<span class="muted">locked {money(reconciliation['escrow_locked'])} · settled {money(reconciliation['settled'])} · price {money(reconciliation['price'])} · {reconciliation['movements']} movements</span></div>
-<div class="row" style="margin-top:10px"><span class="chip {'ok' if invariant['holds'] else 'warn'}">MARKET INVARIANT {'HOLDS' if invariant['holds'] else 'BROKEN'}</span>
-<span class="muted">issued {invariant['issued']} == accounted {invariant['accounted']} Lux Coins</span></div>
-<div class="notice"><strong>Honest disclosure.</strong> Payments are simulated Lux Coins in a central SQLite
-ledger on this marketplace; nothing here is a blockchain transaction and transaction IDs are scoped to this
-database. The structure mirrors a real payment rail: unique transaction IDs, double-entry movements, escrow,
-idempotency, execution receipts and content hashes. Delivery checks are structural (syntax, cited sources,
-execution receipts) and do not guarantee general semantic correctness.</div>
-<p class="muted">Raw machine-readable receipt: <a href="../api/receipt/{esc(job_id)}">../api/receipt/{esc(job_id)}</a></p>
-</div>
-
-<details><summary>Raw receipt JSON</summary><pre>{raw}</pre></details>
-<p class="muted" style="margin-top:26px"><a href="..">← marketplace overview</a> · <a href="../payments">all payments</a> · <a href="../web/">agent console</a></p>
-</html>"""
-
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "ProofPayMVP/1"
@@ -981,7 +719,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/health":
                 return self.send(200, {"ok": True, "payments": "simulated Lux Coins"})
             if path == "/":
-                return self.send(200, Path(__file__).with_name("dashboard.html").read_text(), "text/html; charset=utf-8")
+                return self.send(200, ui.dashboard_page(market.dashboard()), "text/html; charset=utf-8")
+            if path == "/assets/site.css":
+                return self.send(200, ui.SITE_CSS, "text/css; charset=utf-8")
             if path == "/api/dashboard":
                 return self.send(200, market.dashboard())
             if path == "/api/offers":
@@ -991,11 +731,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/payments":
                 return self.send(200, market.payments())
             if path == "/payments":
-                return self.send(200, market.payments_html(), "text/html; charset=utf-8")
+                search = parse_qs(self.path.split("?", 1)[1]).get("q", [""])[0][:200] if "?" in self.path else ""
+                return self.send(200, ui.payments_page(market.payments(), search), "text/html; charset=utf-8")
             if path.startswith("/api/receipt/"):
                 return self.send(200, market.receipt(path.removeprefix("/api/receipt/")))
             if path.startswith("/receipt/"):
-                return self.send(200, market.receipt_html(path.removeprefix("/receipt/")), "text/html; charset=utf-8")
+                job_id = path.removeprefix("/receipt/")
+                return self.send(200, ui.receipt_page(market.receipt(job_id), job_id), "text/html; charset=utf-8")
             market.require_client(token)
             if path.startswith("/api/sessions/"):
                 return self.send(200, market.session(path.removeprefix("/api/sessions/")))

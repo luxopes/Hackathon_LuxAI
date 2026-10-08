@@ -19,7 +19,7 @@ ideas, HTTP cart audits) and are paid only for verified deliveries.
 | Marketplace | `python/marketplace.py`, `python/services.py` | 3070 | Wallets, escrow, offers, jobs, ledger, structural verification |
 | Agent console | `lsl/chat_server.lsl` | 3069 | Chat agent (LuxAI Flash), tool-call feed, serves the web frontend |
 | Sellers (×5) | `lsl/seller.lsl` | 3081–3085 | Deliver purchased services; two cart-audit sellers + three general sellers |
-| Public overview | `static/dashboard.html` | — | Read-only marketplace dashboard (public API consumer) |
+| Public pages | `python/ui.py` | — | Overview dashboard, payments list, payment receipts (server-rendered) |
 
 The LSL programs are written in [LSL](https://lsl.lux-ai.cz) and compiled to
 native Linux binaries with `lsl compile`; they reuse the `aikit` package for
@@ -34,7 +34,7 @@ backend/
 ├── lsl/             chat_server.lsl, seller.lsl, chat_core.lsl,
 │                    buyer_core.lsl, stream_codec.lsl, service_menu.lsl
 ├── deploy/          systemd units, Caddyfile.snippet, *.example configs
-├── static/          dashboard.html (public overview)
+├── python/ui.py     design system + public page renderers
 ├── docs/API.md      frontend integration guide (endpoints, state, polling)
 └── docs/DEPLOY.md   build + deployment guide
 ```

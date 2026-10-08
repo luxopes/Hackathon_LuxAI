@@ -61,6 +61,30 @@ a.button:hover{background:#f3f5f8;border-color:#ccd3dd}
 .sr-empty{padding:16px 12px;text-align:center;color:var(--muted);font-size:12px}
 .search input{border:0;background:transparent;width:100%;font-size:12px;outline:0}
 .search kbd{font-size:11px;background:#eef0f3;border-radius:3px;padding:0 5px}
+.bell-wrap{position:relative}
+.bell-count{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:9px;background:#245dee;color:#fff;
+  font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px;border:1.5px solid #fff}
+.bell-count[hidden]{display:none}
+.bell-menu{position:absolute;right:0;top:calc(100% + 8px);width:320px;background:#fff;border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 18px 45px rgba(16,24,40,.16);z-index:45;overflow:hidden}
+.bell-menu[hidden]{display:none}
+.bell-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);font-size:12px;font-weight:600}
+.bell-head span{color:var(--muted);font-weight:400}
+.bell-list{max-height:320px;overflow-y:auto}
+.bell-item{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;border:0;background:transparent;padding:11px 14px;border-bottom:1px solid #eef0f4;cursor:pointer;font-weight:400}
+.bell-item:last-child{border-bottom:0}
+.bell-item:hover{background:#f8fafc}
+.bell-item .dot-badge{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:#98a4b5}
+.bell-item.paid .dot-badge{background:#078a4d}
+.bell-item.refund .dot-badge{background:#c98a1a}
+.bell-item.error .dot-badge{background:#bf384d}
+.bell-item.info .dot-badge{background:#245dee}
+.bell-item b{display:block;font-size:12.5px;font-weight:600;color:var(--ink)}
+.bell-item small{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.bell-item time{margin-left:auto;font-size:10.5px;color:var(--muted);white-space:nowrap}
+.bell-foot{display:block;padding:11px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--blue);background:#fbfcfe}
+.bell-foot:hover{background:#f3f6fb;text-decoration:none}
+.bell-empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:12px}
 .bell{position:relative;border:0;background:transparent;padding:6px;color:#5b697e}
 .bell:hover{background:#f3f5f8}
 .bell svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7}

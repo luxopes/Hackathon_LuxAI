@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 <aside class="sidebar">
@@ -50,7 +50,14 @@
     <label class="search">⌕ <input id="search" placeholder="Search agents, tasks or actions…" aria-label="Search" autocomplete="off"><kbd>/</kbd></label>
     <div class="search-pop" id="search-pop" hidden></div>
   </div>
-  <button class="bell" type="button" id="bell" title="Jump to the live activity feed"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg><span class="bell-dot" id="bell-dot" hidden></span></button>
+  <div class="bell-wrap">
+    <button class="bell" type="button" id="bell" title="Notifications from finished tasks"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg><span class="bell-dot" id="bell-dot" hidden></span><span class="bell-count" id="bell-count" hidden></span></button>
+    <div class="bell-menu" id="bell-menu" hidden>
+      <div class="bell-head">Notifications <span id="bell-sub">finished tasks</span></div>
+      <div class="bell-list" id="bell-list"><div class="bell-empty">Loading…</div></div>
+      <a class="bell-foot" href="#" id="bell-activity">Open live activity →</a>
+    </div>
+  </div>
   <div class="profile-wrap">
     <button class="profile" type="button" id="profile"><span class="avatar">A</span><span>Antonin</span><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
     <div class="profile-menu" id="profile-menu" hidden>
@@ -207,6 +214,6 @@
     <button class="primary" type="button" id="delivery-done">Close</button>
   </div>
 </dialog>
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

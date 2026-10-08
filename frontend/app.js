@@ -10,6 +10,7 @@ let fullState = null;
 let lastMessagesRev = -1;
 let lastAuditRev = -1;
 let previousBusy = false;
+let lastNotificationsRev = -1;
 let autoQueue = [];
 let autoNextAt = 0;
 let noticeUntil = 0;
@@ -798,6 +799,50 @@ function autoTick(st) {
     .catch(() => { autoQueue.unshift(message); autoNextAt = Date.now() + 6000; });
 }
 
+/* ---------- notifications (bell) ---------- */
+function seenNotification() { return localStorage.getItem("notificationsSeen") || ""; }
+
+function unreadCount(notifications) {
+  const seen = seenNotification();
+  const seenNumber = seen ? parseInt(seen.replace("n-", ""), 10) || 0 : 0;
+  return notifications.filter((item) => (parseInt((item.id || "").replace("n-", ""), 10) || 0) > seenNumber).length;
+}
+
+const NOTIFICATION_ICON = { paid: "▸", refund: "↩", done: "✓", error: "!", info: "i" };
+
+function renderNotifications(st) {
+  const list = $("bell-list");
+  if (!list) return;
+  const notifications = (fullState && fullState.notifications) || [];
+  list.replaceChildren();
+  if (!notifications.length) {
+    list.innerHTML = '<div class="bell-empty">No notifications yet — create a task or run the auto demo.</div>';
+  } else {
+    for (const item of [...notifications].reverse()) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "bell-item " + (item.kind || "info");
+      const when = item.time ? new Date(item.time * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+      row.innerHTML = '<span class="dot-badge"></span><span><b>' + esc(item.text || "") + '</b>'
+        + (item.job_id ? '<small>job ' + esc(item.job_id) + ' · click to open the delivery</small>' : '')
+        + '</span><time>' + esc(when) + '</time>';
+      if (item.job_id) row.addEventListener("click", () => { $("bell-menu").hidden = true; openDelivery(item.job_id); });
+      else row.addEventListener("click", () => { $("bell-menu").hidden = true; });
+      list.append(row);
+    }
+  }
+  const unread = unreadCount(notifications);
+  const count = $("bell-count");
+  count.hidden = unread === 0;
+  count.textContent = unread === 0 ? "" : unread > 9 ? "9+" : String(unread);
+}
+
+function markNotificationsSeen() {
+  const notifications = (fullState && fullState.notifications) || [];
+  if (notifications.length) localStorage.setItem("notificationsSeen", notifications[notifications.length - 1].id);
+  renderNotifications(fullState || {});
+}
+
 /* ---------- search with results under the field ---------- */
 const SEARCH_PAGES = [
   { title: "Payments", sub: "Every settled purchase with its receipt", url: "../payments" },
@@ -923,8 +968,9 @@ async function poll() {
     $("btn-auto").disabled = st.busy || autoQueue.length > 0;
     $("btn-stop").hidden = !st.busy;
     $("dialog-submit").disabled = st.busy;
-    $("bell-dot").hidden = !st.busy;
-    if (st.messages_revision !== lastMessagesRev || st.audit_revision !== lastAuditRev) {
+    $("bell-dot").hidden = !st.busy || !$("bell-count").hidden;
+    if (st.messages_revision !== lastMessagesRev || st.audit_revision !== lastAuditRev
+        || st.notifications_revision !== lastNotificationsRev) {
       const full = await (await fetch("api/state?t=" + Date.now())).json();
       if (full && full.ok === true) {
         fullState = full;
@@ -933,6 +979,10 @@ async function poll() {
         renderStats(full);
         renderSystem(full);
         if (full.messages_revision !== lastMessagesRev) { lastMessagesRev = full.messages_revision; renderChat(full.messages); }
+        if (full.notifications_revision !== lastNotificationsRev) {
+          lastNotificationsRev = full.notifications_revision;
+          renderNotifications(full);
+        }
         if (full.audit_revision !== lastAuditRev) {
           lastAuditRev = full.audit_revision;
           renderTasks(full.payments || []);
@@ -998,8 +1048,18 @@ document.querySelectorAll(".filter").forEach((chip) => {
 $("side-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
 $("top-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
 $("top-agents").addEventListener("click", (event) => { event.preventDefault(); $("agents").scrollIntoView({ behavior: "smooth" }); });
-$("bell").addEventListener("click", () => {
+$("bell").addEventListener("click", (event) => {
+  event.stopPropagation();
+  const menu = $("bell-menu");
+  menu.hidden = !menu.hidden;
+  if (!menu.hidden) markNotificationsSeen();
+});
+$("bell-activity").addEventListener("click", () => {
+  $("bell-menu").hidden = true;
   $("activity-list").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".bell-wrap")) $("bell-menu").hidden = true;
 });
 $("profile").addEventListener("click", (event) => {
   event.stopPropagation();

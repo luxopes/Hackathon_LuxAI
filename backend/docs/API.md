@@ -180,6 +180,7 @@ Base URL example: `https://api.lux-ai.cz/hackathon01` (or `http://127.0.0.1:3070
 * `GET /health` → `{"ok": true, "payments": "simulated Lux Coins"}`
 * `GET /` → public overview dashboard (server-rendered by `ui.py`)
 * `GET /assets/site.css` → shared stylesheet for the public pages
+* `GET /docs` → in-app documentation: architecture, payment lifecycle, API table, invariants and local setup
 * `GET /api/dashboard` → `{currency, simulated_payments, services, offers,
   sessions, sellers, invariant}` — includes the ledger invariant
   (`issued == accounted`, `holds`).

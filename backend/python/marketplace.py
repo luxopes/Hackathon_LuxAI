@@ -730,6 +730,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {"services": SERVICES, "currency": CURRENCY})
             if path == "/api/payments":
                 return self.send(200, market.payments())
+            if path == "/docs":
+                return self.send(200, ui.docs_page(), "text/html; charset=utf-8")
             if path == "/payments":
                 search = parse_qs(self.path.split("?", 1)[1]).get("q", [""])[0][:200] if "?" in self.path else ""
                 return self.send(200, ui.payments_page(market.payments(), search), "text/html; charset=utf-8")

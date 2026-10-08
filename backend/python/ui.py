@@ -192,17 +192,16 @@ def _nav(base, active):
         cls = ' class="active"' if key == active else ""
         return f'<a href="{href}"{cls}>{ICONS[icon]}<span>{label}</span></a>'
     home = base or "."
-    docs = "https://github.com/luxopes/Hackathon_LuxAI"
-    docs_page = docs + "/tree/main/backend/docs"
+    docs_page = base + "docs"
     return f"""<nav class="nav">
 {item("overview", "Overview", home, "overview")}
 {item("payments", "Payments", base + "payments", "payments")}
 {item("agents", "Agents", base + "web/", "agents")}
-{item("developers", "Developers", docs, "code")}
+{item("developers", "Developers", docs_page + "#api", "code")}
 <div class="gap"></div>
 {item("docs", "Docs", docs_page, "docs")}
 {item("status", "Status", base + "health", "status")}
-{item("support", "Support", docs + "/issues", "support")}
+{item("support", "Support", docs_page + "#support", "support")}
 </nav>"""
 
 
@@ -307,6 +306,96 @@ def _deco():
   </g>
 </svg>
 <span class="cap">Agents<br>transact<br>the real world</span></div>"""
+
+
+def docs_page():
+    components = [
+        ("Agent console", "3069", "LSL (compiled binary)", "Conversational agent (LuxAI Flash), tool-call feed, chat API, serves the web console"),
+        ("Marketplace", "3070", "Python + SQLite", "Wallets, escrow, offers, jobs, ledger, verification, public pages"),
+        ("Sellers ×5", "3081–3085", "LSL (one binary)", "Deliver purchased services: cart audits over HTTP checks, model services with seller attestation"),
+        ("Speech sidecar", "3071", "Python", "ElevenLabs text-to-speech for stored agent messages (message-index API, disk cache)"),
+    ]
+    component_rows = "".join(
+        f"<tr><td><b>{escape(name)}</b></td><td class='mono'>{escape(port)}</td>"
+        f"<td class='mono'>{escape(stack)}</td><td>{escape(role)}</td></tr>"
+        for name, port, stack, role in components)
+    endpoints = [
+        ("GET", "/", "Overview dashboard: offers, sessions, ledger invariant"),
+        ("GET", "/payments", "Payments list with totals, revenue per seller/service and filters"),
+        ("GET", "/receipt/{job_id}", "Payment receipt: ledger movements, escrow lifecycle, contract, verification, hashes"),
+        ("GET", "/api/payments", "JSON: summary, revenue, services and every payment with its ledger movements"),
+        ("GET", "/api/receipt/{job_id}", "JSON: the full receipt payload (receipt_version 1.0)"),
+        ("GET", "/api/offers", "JSON: active offers with prices and delivery terms"),
+        ("GET", "/api/dashboard", "JSON: public overview incl. the issued == accounted invariant"),
+        ("GET", "/health", "Liveness probe: ok + simulated payments marker"),
+        ("GET", "/api/state", "Console state for the frontend (lite=1 returns wallet, status and revisions only)"),
+        ("POST", "/api/chat", "Start one agent turn with a message (one at a time, 2 s cooldown)"),
+        ("POST", "/api/catalog", "Fetch the live catalog without purchasing"),
+        ("POST", "/api/cancel", "Stop the running turn; a funded job is always settled or refunded first"),
+        ("POST", "/api/new", "Reset the conversation; wallets and the ledger stay on the marketplace"),
+        ("POST", "/api/speak", "Read one stored agent message aloud (ElevenLabs, index-only API)"),
+    ]
+    endpoint_rows = "".join(
+        f"<tr><td><span class='pill {('ok' if method == 'GET' else 'blue')}'>{method}</span></td>"
+        f"<td class='mono'>{escape(path)}</td><td>{escape(description)}</td></tr>"
+        for method, path, description in endpoints)
+    lifecycle = [
+        ("Discovery", "The agent calls <span class='mono'>fetch_offers</span> (a real Flash tool call) and reads the live catalog."),
+        ("Escrow", "<span class='mono'>POST /api/jobs</span> moves the price from the buyer's <b>available</b> to <b>locked</b> balance with a unique idempotency key."),
+        ("Delivery", "The seller executes and streams a live preview; the console renders it while the job runs."),
+        ("Verification", "The marketplace checks the delivery against the agreed contract: structure, syntax, cited sources, execution receipts."),
+        ("Settlement", "Verified delivery releases escrow to the seller (<b>PAID</b>); a failed one refunds the buyer (<b>REFUNDED</b>) and the agent buys elsewhere."),
+    ]
+    lifecycle_rows = "".join(
+        f"<tr><td class='nowrap'><b>{index + 1}. {escape(title)}</b></td><td>{body}</td></tr>"
+        for index, (title, body) in enumerate(lifecycle))
+    content = f"""<div class="hero-row">
+  <div>
+    <div class="kicker"><span>Documentation</span><span class="pill neutral">SIMULATED PAYMENTS</span></div>
+    <h1 class="hero">How it works</h1>
+    <p class="lede">An agent-to-agent marketplace with escrow, verification and dispute resolution.
+    Everything is public and inspectable: every payment has a receipt with its full ledger trail.</p>
+  </div>
+</div>
+{_card("docs", "Architecture", "Four processes on loopback, one public origin",
+       f"<div class='table-wrap'><table><tr><th>Component</th><th>Port</th><th>Stack</th><th>Role</th></tr>{component_rows}</table></div>")}
+{_card("lifecycle", "Payment lifecycle", "One purchase from discovery to settlement",
+       f"<div class='table-wrap'><table>{lifecycle_rows}</table></div>")}
+{_card("code", "API", "Everything the console and the public pages use",
+       f"<div class='table-wrap'><table><tr><th>Method</th><th>Path</th><th>Description</th></tr>{endpoint_rows}</table></div>")}
+{_card("integrity", "Invariants and honest disclosure", "What is enforced, what is simulated",
+       """<ul>
+<li><b>Simulated payments.</b> Lux Coins are test credits in a central SQLite ledger — no real money, no blockchain. IDs are scoped to this database.</li>
+<li><b>Caps hold.</b> A wallet can never spend beyond its budget; the market-wide invariant <span class="mono">issued == accounted</span> is checked on every page.</li>
+<li><b>Nothing pays twice.</b> Idempotency keys plus unique constraints allow exactly one escrow and one settlement per job.</li>
+<li><b>Structural verification only.</b> Deliveries are checked for structure, Python syntax, cited sources and execution receipts — this does not guarantee general semantic correctness.</li>
+</ul>
+<div class="notice">The reference implementation (agent console, marketplace, LSL sellers, deployment) lives in a private
+source repository; ask the team for access. The frontend is a plain poller: <span class="mono">GET /api/state?lite=1</span>
+every 500 ms and a full fetch whenever a revision changes.</div>""")}
+{_card("agents", "Run it yourself", "From zero on a Linux x86_64 machine",
+       """<div class="table-wrap"><table>
+<tr><th>Step</th><th>Command</th></tr>
+<tr><td class="nowrap">1. Install LSL</td><td class="mono">curl -LO https://lsl.lux-ai.cz/downloads/lsl-0.8.9-linux-x86_64.tar.gz</td></tr>
+<tr><td class="nowrap">2. Unpack + install</td><td class="mono">tar -xzf lsl-0.8.9-linux-x86_64.tar.gz &amp;&amp; ./lsl-0.8.9/bin/lsl-install "$HOME/.local"</td></tr>
+<tr><td class="nowrap">3. Model client</td><td class="mono">lsl install aikit</td></tr>
+<tr><td class="nowrap">4. Start the stack</td><td class="mono">scripts/run-local.sh</td></tr>
+</table></div>
+<p class="muted">The script builds the LSL binaries, generates tokens and configuration, starts the marketplace,
+five sellers and the console, and waits for their health endpoints. Details live in <span class="mono">backend/docs/SETUP.md</span>.</p>""")}
+<section class="card" id="support">
+  <div class="card-head"><span class="ico">{ICONS["support"]}</span>
+    <div><h2>Support</h2><div class="sub">Questions about the demo, the data or the API</div></div>
+  </div>
+  <div class="card-body">
+    <p>The marketplace is a hackathon project. For access to the source repository, a walkthrough of the
+    ledger and verification model, or to reproduce any receipt, reach out to the team. Every number on this
+    site can be re-derived from the receipt JSON: movements, balances, hashes and checks.</p>
+    <p class="muted">Nothing here is financial advice and no real funds are involved.</p>
+  </div>
+</section>"""
+    return shell("", "docs", [("Docs", "docs")], content,
+                 description="agentic economy · simulated payments")
 
 
 def dashboard_page(data):

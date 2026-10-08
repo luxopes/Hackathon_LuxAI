@@ -54,6 +54,12 @@ done
 chmod 640 /etc/proofpay-mvp/*.token && chown root:proofpay /etc/proofpay-mvp/*.token
 
 install -m 640 -o root -g proofpay luxai.key /etc/proofpay-mvp/luxai.key
+# receipt signing key (Ed25519): every settled job gets a verifiable signature
+openssl genpkey -algorithm ed25519 -out /etc/proofpay-mvp/receipt-signing.key
+openssl pkey -in /etc/proofpay-mvp/receipt-signing.key -pubout -out /etc/proofpay-mvp/receipt-signing.key.pub
+chmod 640 /etc/proofpay-mvp/receipt-signing.key* && chown root:proofpay /etc/proofpay-mvp/receipt-signing.key*
+# market.json: "receipt_signing_key_file": "/etc/proofpay-mvp/receipt-signing.key"
+
 # optional: Apify token for live-web research (falls back to Wikipedia without it)
 printf '%s' 'apify_api_…' > /etc/proofpay-mvp/apify.token
 chmod 640 /etc/proofpay-mvp/apify.token && chown root:proofpay /etc/proofpay-mvp/apify.token

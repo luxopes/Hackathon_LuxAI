@@ -15,8 +15,8 @@ video is mandatory, so it is scheduled first and nothing may delay it.
 | # | Item | Why | Time |
 |---|---|---|---|
 | P0 | Demo video (script + record + upload) | Mandatory for submission; 35 % value + 20 % end-to-end are shown here | 1.5–2 h |
-| P1 | Signed receipts + offline verifier | “Practically 1:1 with real payments”: cryptographic proof, not just our word | 1–1.5 h |
-| P2 | Ledger export (JSONL/CSV) | Auditable data out of the system | 30 min |
+| P1 | ~~Signed receipts + offline verifier~~ **DONE** (Ed25519, key published, `tools/verify_receipt.py`, tamper test passes) | “Practically 1:1 with real payments”: cryptographic proof, not just our word | 1–1.5 h |
+| P2 | ~~Ledger export (JSONL/CSV)~~ **DONE** (+ append-only hash chain + `/api/ledger/check`) | Auditable data out of the system | 30 min |
 | P3 | Demo hardening: reset flow, quota check, rehearsal | One failed take costs 20 minutes | 30 min |
 | P4 | Submission packaging: repo state, ZIP, HQ upload | Nobody should scramble at 07:00 | 30 min |
 | P5 | Stretch — only if everything above is done | e.g. epoch hash chain, seller page | rest |

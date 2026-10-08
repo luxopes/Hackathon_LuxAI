@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 from datetime import datetime, timezone
 import hashlib
@@ -12,6 +13,8 @@ import os
 from pathlib import Path
 import secrets
 import sqlite3
+import subprocess
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -42,6 +45,14 @@ class Market:
         self.client_token = Path(config["client_token_file"]).read_text().strip()
         apify_file = config.get("apify_token_file", "")
         self.apify_token = Path(apify_file).read_text().strip() if apify_file and Path(apify_file).is_file() else ""
+        # Podpisový klíč pro doklady (Ed25519); bez něj se doklady jen nepodepisují.
+        key_file = config.get("receipt_signing_key_file", "")
+        self.signing_key_file = key_file
+        self.signing_key_id = ""
+        self.signing_public_pem = ""
+        if key_file and Path(key_file).is_file() and Path(key_file + ".pub").is_file():
+            self.signing_public_pem = Path(key_file + ".pub").read_text().strip()
+            self.signing_key_id = "ppk-" + hashlib.sha256(self.signing_public_pem.encode()).hexdigest()[:16]
         self.sellers = {s["id"]: {**s, "token": Path(s["token_file"]).read_text().strip()} for s in config["sellers"]}
         if len(self.client_token) < 32 or any(len(s["token"]) < 32 for s in self.sellers.values()):
             raise ValueError("Tokens must have at least 32 characters")
@@ -66,6 +77,9 @@ class Market:
                     artifact_sha256 TEXT NOT NULL, model TEXT NOT NULL, created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS research_sources(job_id TEXT NOT NULL REFERENCES jobs(id), url TEXT NOT NULL,
                     title TEXT NOT NULL, extract TEXT NOT NULL, PRIMARY KEY(job_id,url));
+                CREATE TABLE IF NOT EXISTS signatures(job_id TEXT PRIMARY KEY, alg TEXT NOT NULL,
+                    public_key_id TEXT NOT NULL, signature TEXT NOT NULL, payload TEXT NOT NULL,
+                    payload_sha256 TEXT NOT NULL, created REAL NOT NULL);
             """)
             # Doplnění sloupců zachovává zůstatky, původní zakázky i jejich kontrakty.
             columns = {r[1] for r in db.execute("PRAGMA table_info(offers)")}
@@ -490,6 +504,45 @@ class Market:
                  "extract": page.get("extract", "")[:1800]}
                 for page in data.get("query", {}).get("pages", {}).values() if page.get("extract")]
 
+    def settlement_payload(self, job_id):
+        # Neměnný obsah, který se podepisuje: identita, částka, hashe a pohyby.
+        job = self.job(job_id)
+        payment = self.payment(job_id)
+        settled = [t for t in payment["transactions"]
+                   if t["action"] in ("PAYMENT_RELEASED", "REFUND_AUTHORIZED_BY_CONTRACT")]
+        return {"payload_version": "1.0", "job_id": job["id"], "session_id": job["session_id"],
+                "seller_id": job["seller_id"], "offer_id": job["offer_id"], "amount": job["price"],
+                "currency": CURRENCY, "state": job["state"], "idempotency_key": job["idempotency_key"],
+                "contract_sha256": payment["contract_sha256"], "result_sha256": payment["result_sha256"],
+                "settled_at": settled[0]["created_at"] if settled else None,
+                "transactions": [{"id": t["id"], "action": t["action"], "amount": t["amount"],
+                                  "created_at": t["created_at"]} for t in payment["transactions"]],
+                "verification_receipts": payment["verification_receipts"]}
+
+    def sign_settlement(self, job_id):
+        # Podpis nesmí nikdy zablokovat vypořádání; při chybě se jen neuloží.
+        if not self.signing_key_file or not Path(self.signing_key_file).is_file():
+            return
+        try:
+            payload = encoded(self.settlement_payload(job_id)).encode()
+            with tempfile.TemporaryDirectory() as workdir:
+                payload_file = Path(workdir) / "payload.json"
+                signature_file = Path(workdir) / "signature.bin"
+                payload_file.write_bytes(payload)
+                # Ed25519 podepisuje data přímo (raw), ne digest – proto pkeyutl -rawin.
+                subprocess.run(["openssl", "pkeyutl", "-sign", "-inkey", self.signing_key_file,
+                                "-rawin", "-in", str(payload_file), "-out", str(signature_file)],
+                               capture_output=True, check=True, timeout=20)
+                signature = signature_file.read_bytes()
+            digest = hashlib.sha256(payload).hexdigest()
+            with self.transaction() as db:
+                db.execute("INSERT OR REPLACE INTO signatures(job_id, alg, public_key_id, signature, payload, payload_sha256, created)"
+                           " VALUES(?,?,?,?,?,?,?)",
+                           (job_id, "ed25519-sha256", self.signing_key_id,
+                            base64.b64encode(signature).decode(), payload.decode(), digest, time.time()))
+        except (OSError, subprocess.SubprocessError, sqlite3.Error):
+            return
+
     def finish(self, job_id, refund):
         with self.transaction() as db:
             row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
@@ -513,6 +566,7 @@ class Market:
                 db.execute("UPDATE wallets SET available = available + ? WHERE id = ?", (price, row["seller_id"]))
             db.execute("UPDATE jobs SET state = ? WHERE id = ?", (final, job_id))
             self.record(db, session_id, job_id, "REFUND_AUTHORIZED_BY_CONTRACT" if refund else "PAYMENT_RELEASED", price)
+        self.sign_settlement(job_id)
         return self.job(job_id)
 
     def dashboard(self):
@@ -524,6 +578,47 @@ class Market:
         return {"currency": CURRENCY, "simulated_payments": True, "services": SERVICES, "offers": self.offers(),
                 "sessions": [self.session(i) for i in ids], "sellers": wallets,
                 "invariant": {"issued": minted, "accounted": held, "holds": minted == held}}
+
+    def ledger_chain(self):
+        # Append-only hash chain: každý řádek nese hash předchozího; přepis je vidět.
+        with self.db() as db:
+            rows = [dict(r) for r in db.execute(
+                "SELECT l.id, l.session_id, l.job_id, l.action, l.amount, l.created, s.title AS session_title "
+                "FROM ledger l LEFT JOIN sessions s ON s.id = l.session_id ORDER BY l.id")]
+        previous = "0" * 64
+        chain = []
+        for row in rows:
+            core = {"ledger_id": row["id"], "session_id": row["session_id"], "job_id": row["job_id"],
+                    "action": row["action"], "amount": row["amount"], "created": row["created"],
+                    "prev_hash": previous, "currency": CURRENCY}
+            row_hash = hashlib.sha256((previous + encoded(core)).encode()).hexdigest()
+            chain.append({**core, "id": "lux-tx-" + str(row["id"]),
+                          "created_at": datetime.fromtimestamp(row["created"], timezone.utc).isoformat(),
+                          "session_title": row["session_title"], "row_hash": row_hash})
+            previous = row_hash
+        return chain
+
+    def ledger_export(self, format="jsonl"):
+        chain = self.ledger_chain()
+        if format == "csv":
+            lines = ["tx_id,ledger_id,session_id,job_id,action,amount,currency,created_at,row_hash"]
+            for row in chain:
+                fields = [row["id"], row["ledger_id"], row["session_id"] or "", row["job_id"] or "",
+                          row["action"], row["amount"], CURRENCY, row["created_at"], row["row_hash"]]
+                lines.append(",".join('"' + str(value).replace('"', '""') + '"' for value in fields))
+            return "\n".join(lines) + "\n"
+        return "".join(encoded({k: v for k, v in row.items() if k != "session_title"}) + "\n" for row in chain)
+
+    def ledger_check(self):
+        chain = self.ledger_chain()
+        previous = "0" * 64
+        for index, row in enumerate(chain):
+            core = {k: row[k] for k in ["ledger_id", "session_id", "job_id", "action", "amount", "created", "prev_hash", "currency"]}
+            expected = hashlib.sha256((previous + encoded(core)).encode()).hexdigest()
+            if row["row_hash"] != expected:
+                return {"ok": False, "rows": len(chain), "broken_at": row["ledger_id"]}
+            previous = row["row_hash"]
+        return {"ok": True, "rows": len(chain), "head": previous}
 
     # Veřejný seznam všech plateb (zakázek) se souhrnem a pohyby ledgeru.
     def payments(self, limit=1000):
@@ -601,6 +696,7 @@ class Market:
             wallet = dict(db.execute("SELECT * FROM wallets WHERE id = ?", (job["session_id"],)).fetchone())
             seller_wallet = dict(db.execute("SELECT * FROM wallets WHERE id = ?", (job["seller_id"],)).fetchone())
             ledger_rows = [dict(row) for row in db.execute("SELECT * FROM ledger WHERE session_id = ? ORDER BY id", (job["session_id"],))]
+            signature = db.execute("SELECT * FROM signatures WHERE job_id = ?", (job_id,)).fetchone()
             minted = db.execute("SELECT COALESCE(SUM(budget),0) FROM sessions").fetchone()[0]
             held = db.execute("SELECT COALESCE(SUM(available + locked),0) FROM wallets").fetchone()[0]
         # Rekonstrukce zůstatků z ledgeru: každý pohyb i se stavem po něm.
@@ -642,6 +738,13 @@ class Market:
                 "reconciliation": {"escrow_locked": escrow_locked, "settled": settled, "price": job["price"],
                                    "balanced": escrow_locked == settled == job["price"] and credits >= 0,
                                    "movements": len(job_moves)},
+                "signature": ({"alg": signature["alg"], "key_id": signature["public_key_id"],
+                               "value_base64": signature["signature"], "payload": signature["payload"],
+                               "payload_sha256": signature["payload_sha256"],
+                               "created_at": datetime.fromtimestamp(signature["created"], timezone.utc).isoformat()}
+                              if signature else None),
+                "public_key": ({"id": self.signing_key_id, "alg": "Ed25519", "public_key_pem": self.signing_public_pem}
+                               if self.signing_public_pem else None),
                 "invariant": {"issued": minted, "accounted": held, "holds": minted == held}}
 
 class Handler(BaseHTTPRequestHandler):
@@ -720,6 +823,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {"ok": True, "payments": "simulated Lux Coins"})
             if path == "/":
                 return self.send(200, ui.dashboard_page(market.dashboard()), "text/html; charset=utf-8")
+            if path == "/.well-known/proofpay-keys.json":
+                keys = [{"id": market.signing_key_id, "alg": "Ed25519", "public_key_pem": market.signing_public_pem}] if market.signing_public_pem else []
+                return self.send(200, {"keys": keys})
             if path == "/assets/site.css":
                 return self.send(200, ui.SITE_CSS, "text/css; charset=utf-8")
             if path == "/api/dashboard":
@@ -728,13 +834,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {"offers": market.offers()})
             if path == "/api/services":
                 return self.send(200, {"services": SERVICES, "currency": CURRENCY})
+            if path == "/api/ledger/export":
+                query = parse_qs(self.path.split("?", 1)[1]) if "?" in self.path else {}
+                export_format = (query.get("format", ["jsonl"])[0] or "jsonl").lower()
+                if export_format == "csv":
+                    return self.send(200, market.ledger_export("csv"), "text/csv; charset=utf-8")
+                return self.send(200, market.ledger_export("jsonl"), "application/x-ndjson; charset=utf-8")
+            if path == "/api/ledger/check":
+                return self.send(200, market.ledger_check())
             if path == "/api/payments":
                 return self.send(200, market.payments())
             if path == "/docs":
                 return self.send(200, ui.docs_page(), "text/html; charset=utf-8")
             if path == "/payments":
                 search = parse_qs(self.path.split("?", 1)[1]).get("q", [""])[0][:200] if "?" in self.path else ""
-                return self.send(200, ui.payments_page(market.payments(), search), "text/html; charset=utf-8")
+                return self.send(200, ui.payments_page(market.payments(), search, market.ledger_check()), "text/html; charset=utf-8")
             if path.startswith("/api/receipt/"):
                 return self.send(200, market.receipt(path.removeprefix("/api/receipt/")))
             if path.startswith("/receipt/"):

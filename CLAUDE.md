@@ -142,6 +142,18 @@ POST /api/jobs/{id}/refund  → REFUNDED (failed delivery only)
 * Conversation state is in-memory; a restart starts a new conversation while
   wallets/jobs/ledger stay in SQLite.
 
+## Signed receipts and the ledger chain
+
+Every settlement is signed: `marketplace.py` builds the canonical settlement
+payload (`settlement_payload`), signs it with Ed25519 via
+`openssl pkeyutl -sign -rawin` (pure EdDSA — **`openssl dgst -sha256 -sign`
+does not work with Ed25519**) and stores it in the `signatures` table. The key
+lives in a file (`receipt_signing_key_file`), the public key is published at
+`/.well-known/proofpay-keys.json` and `tools/verify_receipt.py` verifies a
+receipt offline (it also checks that the receipt fields still match the signed
+payload, so tampering fails). The ledger itself is an append-only hash chain:
+`GET /api/ledger/export` and `GET /api/ledger/check` expose it.
+
 ## Payment receipts (public proof page)
 
 `GET /payments` (and `/api/payments`) lists every payment with totals, revenue

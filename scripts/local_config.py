@@ -7,6 +7,7 @@ Idempotent: existing tokens and seller environment files are kept.
 """
 import json
 import os
+import subprocess
 import secrets
 import sys
 from pathlib import Path
@@ -73,6 +74,16 @@ def main():
     apify = os.environ.get("APIFY_TOKEN_FILE", str(Path.home() / ".config/apify/token"))
     if Path(apify).is_file():
         market["apify_token_file"] = apify
+    # Podpisový klíč dokladů (Ed25519) – vytvoří se při prvním spuštění.
+    signing = CFG / "receipt-signing.key"
+    if not signing.is_file():
+        subprocess.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", str(signing)],
+                       check=True, capture_output=True)
+        subprocess.run(["openssl", "pkey", "-in", str(signing), "-pubout", "-out", str(signing) + ".pub"],
+                       check=True, capture_output=True)
+        os.chmod(signing, 0o600)
+        os.chmod(str(signing) + ".pub", 0o600)
+    market["receipt_signing_key_file"] = str(signing)
     path = CFG / "market.json"
     path.write_text(json.dumps(market, indent=2) + "\n")
     os.chmod(path, 0o600)

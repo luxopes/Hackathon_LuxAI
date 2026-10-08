@@ -454,8 +454,9 @@ def dashboard_page(data):
                  description="simulated Lux Coins · overview")
 
 
-def payments_page(data, query=""):
+def payments_page(data, query="", chain=None):
     summary, invariant = data["summary"], data["invariant"]
+    chain = chain or {"ok": True, "rows": 0, "head": ""}
     currency = data["currency"]
     rows = []
     for payment in data["payments"]:
@@ -508,9 +509,15 @@ def payments_page(data, query=""):
 </div>
 <div class="table-wrap"><table id="payments"><tr><th>Created (UTC)</th><th>Payment ID</th><th>Seller</th><th>Service</th><th class="num">Amount</th><th>State</th><th class="num">Settled in</th><th>Ledger movements</th><th></th></tr>
 {"".join(rows)}</table></div>
+<div class="toolbar" style="margin-top:12px">
+  <span class="pill {'ok' if chain['ok'] else 'err'}">LEDGER CHAIN {'INTACT' if chain['ok'] else 'BROKEN'}</span>
+  <span class="muted">{chain['rows']} movements · head <span class="mono">{chain.get('head', chain.get('broken_at', ''))[:16]}…</span> ·
+  <a href="../api/ledger/export">export JSONL</a> · <a href="../api/ledger/export?format=csv">CSV</a> · <a href="../api/ledger/check">integrity check</a></span>
+</div>
 <div class="notice"><strong>Honest disclosure.</strong> Simulated test credits only — no real money and no
 blockchain. “Nothing pays twice” is enforced by unique idempotency keys and database constraints;
-“caps hold” by wallet budgets and the invariant above.</div>
+“caps hold” by wallet budgets and the invariant above. The ledger is an append-only hash chain, so any
+edited row breaks the chain at a visible point.</div>
 <script>
 const rows = [...document.querySelectorAll('.payment-row')];
 const q = document.getElementById('q'), state = document.getElementById('state'), count = document.getElementById('count');
@@ -605,7 +612,20 @@ def receipt_page(data, job_id):
         _fact("Buyer wallet (now)", f"available {data['wallets']['buyer']['available']} · locked {data['wallets']['buyer']['locked']}"),
         _fact("Seller wallet (now)", f"available {data['wallets']['seller']['available']} · locked {data['wallets']['seller']['locked']}"),
         _fact("Contract SHA-256", payment["contract_sha256"], mono=True, copy_value=payment["contract_sha256"]),
+        (_fact("Receipt signature", f"{data['signature']['alg']} · {data['signature']['key_id']}", mono=True,
+               sub=f"payload SHA-256 {data['signature']['payload_sha256'][:24]}…",
+               copy_value=data["signature"]["value_base64"])
+         if data.get("signature") else
+         _fact("Receipt signature", "not signed", sub="created before receipt signing was enabled")),
     ])
+    if data.get("signature"):
+        signed_block = (f"<div class='toolbar'><span class='pill ok'>SIGNED RECEIPT</span>"
+                        f"<span class='muted'>Ed25519 signature over the canonical settlement payload · verify offline with "
+                        f"<span class='mono'>tools/verify_receipt.py</span> and the "
+                        f"<a href='../.well-known/proofpay-keys.json'>published public key</a></span></div>")
+    else:
+        signed_block = ("<div class='toolbar'><span class='pill neutral'>UNSIGNED RECEIPT</span>"
+                        "<span class='muted'>created before receipt signing was enabled</span></div>")
     hero_actions = f"""<div class="hero-side">
   <div class="hero-actions">
     <button type="button" class="btn dark" id="copy-link">Copy link</button>
@@ -652,7 +672,8 @@ def receipt_page(data, job_id):
 <p class="muted">Delivery SHA-256: <span class="mono">{escape(payment['result_sha256'] or '—')}</span></p>
 {delivery}''')}
 {_card("integrity", "Integrity", "Reconciliation and market-wide invariants",
-       f'''<div class="toolbar">
+       f'''{signed_block}
+<div class="toolbar">
   <span class="pill {'ok' if reconciliation['balanced'] else 'err'}">ESCROW RECONCILIATION {'BALANCED' if reconciliation['balanced'] else 'MISMATCH'}</span>
   <span class="muted">locked {_money(reconciliation['escrow_locked'], currency)} · settled {_money(reconciliation['settled'], currency)} · price {_money(reconciliation['price'], currency)} · {reconciliation['movements']} movements</span>
 </div>

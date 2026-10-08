@@ -192,13 +192,21 @@ Base URL example: `https://api.lux-ai.cz/hackathon01` (or `http://127.0.0.1:3070
   links to its receipt.
 * `GET /api/payments` → the same data as JSON (summary, revenue, services,
   payments with ledger movements, invariant).
+* `GET /.well-known/proofpay-keys.json` → published Ed25519 public key(s) for
+  verifying receipt signatures offline.
+* `GET /api/ledger/export?format=jsonl|csv` → the append-only ledger as JSONL
+  (each row carries `prev_hash`/`row_hash`, forming a tamper-evident chain) or CSV.
+* `GET /api/ledger/check` → recomputes the chain: `{ok, rows, head}` (or
+  `broken_at` when a row was edited).
 * `GET /receipt/{job_id}` → self-contained HTML **payment receipt**: every ledger
   movement with reconstructed buyer balances, escrow lifecycle, contract and
   hashes, verification findings and execution receipts, reconciliation
   (`escrow_locked == settled == price`), the market-wide invariant and the raw
   JSON. Link to it from any job id.
 * `GET /api/receipt/{job_id}` → the same receipt as machine-readable JSON
-  (`receipt_version: "1.0"`).
+  (`receipt_version: "1.0"`), including the Ed25519 `signature` block (canonical
+  settlement payload, payload SHA-256, key id) and the embedded `public_key`.
+  Verify offline with `tools/verify_receipt.py`.
 
 ### Client-token endpoints
 

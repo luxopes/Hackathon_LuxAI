@@ -36,6 +36,9 @@ scripts/    local run/config helpers
 
 ## Docs
 
+* **`tools/verify_receipt.py`** — verify a payment receipt offline: recomputes
+  the canonical payload, checks the SHA-256 and the Ed25519 signature against the
+  published key (`python3 tools/verify_receipt.py --url <receipt-url>`).
 * **`SPRINT.md`** — the plan for the hackathon night (7 hours to code freeze).
 * **`ROADMAP.md`** — the post-hackathon plan: hardening, real payment rails
   (x402/AP2/Stripe), seller network, arbitration and scale.

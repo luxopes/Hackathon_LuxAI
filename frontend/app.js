@@ -960,6 +960,7 @@ const GUIDE_STEPS = [
 ];
 let guideIndex = 0;
 let stripeUsd = 1;
+let openQuestion = null;
 
 function positionGuide() {
   const step = GUIDE_STEPS[guideIndex];
@@ -1042,6 +1043,56 @@ async function confirmStripeReturn(stripeId) {
     lastAuditRev = -1;
   } catch (error) {
     showNotice("Stripe confirmation failed: " + error.message);
+  }
+}
+
+// Popup se objeví jen tehdy, když agent potřebuje vstup, který má jedině uživatel.
+function renderQuestion(st) {
+  const question = st && st.question ? st.question : null;
+  const dialog = $("question-dialog");
+  if (!question) {
+    if (dialog.open) dialog.close();
+    openQuestion = null;
+    return;
+  }
+  if (openQuestion && openQuestion.id === question.id && dialog.open) return;
+  openQuestion = question;
+  $("question-text").textContent = question.text;
+  $("question-answer").value = "";
+  const box = $("question-options");
+  box.innerHTML = "";
+  (question.options || []).forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = option;
+    button.addEventListener("click", () => { $("question-answer").value = option; $("question-answer").focus(); });
+    box.appendChild(button);
+  });
+  if (!dialog.open) dialog.showModal();
+  $("question-answer").focus();
+}
+
+async function answerQuestion(text) {
+  if (!openQuestion) return;
+  const answer = (text || "").trim();
+  if (!answer) { showNotice("Type an answer first, or let the agent decide."); return; }
+  $("question-send").disabled = true;
+  $("question-decide").disabled = true;
+  try {
+    const resp = await post("api/answer", { question_id: openQuestion.id, answer: answer });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      showNotice((data.error || "The answer could not be sent") + " (HTTP " + resp.status + ")");
+      return;
+    }
+    $("question-dialog").close();
+    openQuestion = null;
+    lastAuditRev = -1;
+  } catch (error) {
+    showNotice("The answer could not be sent: " + error.message);
+  } finally {
+    $("question-send").disabled = false;
+    $("question-decide").disabled = false;
   }
 }
 
@@ -1221,6 +1272,7 @@ async function poll() {
     latest = st;
     renderWallet(st);
     renderStats(st);
+    renderQuestion(st);
     if (Date.now() >= noticeUntil) {
       $("status-line").textContent = autoQueue.length ? `Auto demo · step ${Math.min(AUTO_STEPS.length - autoQueue.length, AUTO_STEPS.length)}/${AUTO_STEPS.length}`
         : (st.busy ? "⟳ " : "") + st.status;
@@ -1291,6 +1343,9 @@ document.querySelectorAll("#topup-presets button").forEach((button) => button.ad
 }));
 document.querySelectorAll("#stripe-presets .usd").forEach((button) => button.addEventListener("click", () => setStripeUsd(Number(button.dataset.usd))));
 $("stripe-pay").addEventListener("click", payByCard);
+$("question-send").addEventListener("click", () => answerQuestion($("question-answer").value));
+$("question-decide").addEventListener("click", () => answerQuestion("Use your best judgement and continue autonomously."));
+$("question-close").addEventListener("click", () => { $("question-dialog").close(); });
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });

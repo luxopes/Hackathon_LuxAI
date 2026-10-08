@@ -20,6 +20,17 @@
 - [x] Marketplace HTTP API with escrow, delivery verification, contract refunds,
       signed receipts and the append-only hash-chained ledger (invariant holds)
 
+**Autonomy and the one dialog**
+
+- [x] From the first message the agent runs the whole task itself: catalog,
+      purchase, escrow, verification, settlement or refund — no confirmation
+      requests, sensible defaults, one service bought per turn
+- [x] A dialog pops up only when a required input is genuinely missing (for
+      example the text to translate): `/api/answer` resumes the original task
+      with the saved assignment; verified end to end from the console
+- [x] The autonomy logic lives in LSL (`chat_core.lsl` prompt and decision
+      handling, `chat_server.lsl` state, route and resume)
+
 **Stability**
 
 - [x] The console state lock can no longer leak: a fixed hard hang during audits

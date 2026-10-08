@@ -60,6 +60,12 @@ walk through the receipt. Keep the narration tight at the start.
 | 1:40–1:52 | Run the verifier, or show `/docs` + the ledger chain badge | “Anyone can verify it offline with the published key, the ledger is an append-only hash chain, and issued == accounted holds.” |
 | 1:52–2:00 | Payments list (totals, success rate) | “Caps hold, nothing pays twice — and every payment is labelled simulated.” |
 
+**Optional bonus beat (only if you are ahead of time):** in the composer type
+*Translate it to English.* The agent answers that it needs the text and a dialog
+pops up; paste a sentence, send it, and the agent buys the translation (2 LC) on
+its own. It shows that autonomy has exactly one gate — the input only the user
+has.
+
 ---
 
 ## Pre-record checklist
@@ -70,6 +76,7 @@ walk through the receipt. Keep the narration tight at the start.
 - [x] Signed receipt verified offline against the production key (tamper test fails)
 - [x] Stripe test-mode card top-up rehearsed end to end (checkout page → paid → credited)
 - [ ] Stripe card flow must be rehearsed on the recording browser (log in first, then pay)
+- [ ] Optional pop-up beat rehearsed: "Translate it to English." → dialog → answer → 2 LC delivery
 - [ ] Browser zoom 125 %, no bookmarks bar, notifications off
 - [ ] Services: market, web, tts, all five sellers active
 - [ ] Flash + Apify + ElevenLabs quota checked (one full rehearsal run)

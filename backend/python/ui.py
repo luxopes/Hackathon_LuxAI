@@ -375,6 +375,7 @@ def docs_page():
        f"<div class='table-wrap'><table><tr><th>Method</th><th>Path</th><th>Description</th></tr>{endpoint_rows}</table></div>")}
 {_card("integrity", "Invariants and honest disclosure", "What is enforced, what is simulated",
        """<ul>
+<li><b>Fully autonomous turns.</b> From the first message the agent inspects the live catalog, buys the right service in escrow, verifies the delivery and settles or refunds it on its own; it asks for confirmation nowhere. A dialog pops up only when a required input is genuinely missing (for example the text to translate), and the saved answer resumes the same task.</li>
 <li><b>Simulated payments.</b> Lux Coins are test credits in a central SQLite ledger — no real money, no blockchain. They are pegged at <b>1 USD = 20 LC</b> and labelled as simulated everywhere. IDs are scoped to this database.</li>
 <li><b>Card top-ups run in Stripe test mode.</b> The buyer pays on a real Stripe Checkout page (sandbox): the card flow, the amounts in USD, the redirect and the signed confirmation are genuine Stripe objects in test mode, while the coins they buy and every internal settlement stay simulated and labelled as such.</li>
 <li><b>Caps hold.</b> A wallet can never spend beyond its budget; the market-wide invariant <span class="mono">issued == accounted</span> is checked on every page.</li>

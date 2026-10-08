@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <aside class="sidebar">
@@ -217,6 +217,22 @@
     <button class="primary" type="button" id="delivery-done">Close</button>
   </div>
 </dialog>
+<dialog id="question-dialog">
+  <div class="dialog-heading">
+    <div><span class="eyebrow">THE AGENT NEEDS ONE THING</span><h2>Answer and it continues</h2></div>
+    <button class="icon-button" type="button" id="question-close" aria-label="Close dialog">×</button>
+  </div>
+  <p class="question-text" id="question-text">…</p>
+  <div class="question-options" id="question-options"></div>
+  <label>Your answer
+    <textarea id="question-answer" rows="3" placeholder="Type the missing piece — the agent takes over from there."></textarea>
+  </label>
+  <p class="form-note">This dialog appears only when the agent genuinely cannot continue without you. Everything else it does on its own.</p>
+  <div class="dialog-footer">
+    <button type="button" id="question-decide">Let the agent decide</button>
+    <button class="primary" type="button" id="question-send">Send answer</button>
+  </div>
+</dialog>
 <div class="auth-overlay" id="auth-overlay" hidden>
   <div class="auth-card">
     <div class="auth-brand"><span class="mark"><svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg></span>
@@ -294,6 +310,6 @@
   </div>
 </dialog>
 
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>

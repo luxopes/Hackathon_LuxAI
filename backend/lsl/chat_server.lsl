@@ -24,9 +24,11 @@ running.append(0)
 
 # Chat a stav jsou měněny pouze pod zámkem; pracovní vlákno píše přes progress.
 chat = agent.conversation()
-greeting = "Type what you want done. I will fetch the current offers, pick a seller and buy the service within budget. If no one offers it, I will tell you why.\nYou can also ask: What is on offer right now?"
-state = {"messages": [{"role": "Agent", "content": greeting}], "wallet": None, "budget": None, "status": "Ready", "busy": False, "tools": [], "payments": [], "notifications": [], "notification_seq": 0, "messages_revision": 0, "audit_revision": 0, "notifications_revision": 0}
+greeting = "Describe the task once and I take it from there: I read the live catalog, buy the right service in escrow, verify the delivery, settle or refund it, and hand you a signed receipt. I only open a dialog when something is genuinely missing that only you have.\nYou can also ask: What is on offer right now?"
+state = {"messages": [{"role": "Agent", "content": greeting}], "wallet": None, "budget": None, "question": None, "status": "Ready", "busy": False, "tools": [], "payments": [], "notifications": [], "notification_seq": 0, "messages_revision": 0, "audit_revision": 0, "notifications_revision": 0}
 work = {"kind": "", "prompt": "", "budget": 0}
+# Původní zadání uživatele; drží se přes dotazy v popupu, aby se dalo pokračovat.
+root_task = {"value": ""}
 streams = {}
 guard = {"last_chat": 0.0}
 # Skalární přiřazení uvnitř funkce stíní globál; držák to obchází.
@@ -450,10 +452,26 @@ function worker():
             if state["messages"][len(state["messages"]) - 1]["content"] != report["reply"]:
                 call append_message("Agent", report["reply"])
             end
+            # Agent se zastavil jen proto, že mu chybí vstup, který má jedině uživatel.
+            if report.get("decision", "") == "needs_input":
+                task = root_task["value"]
+                if task == "":
+                    task = work["prompt"]
+                end
+                state["question"] = {"id": "q-" + String(chat["turn"]), "text": report["reply"],
+                    "options": report.get("options", []), "task": task, "time": time.time()}
+                state["status"] = "Waiting for your answer"
+                state["audit_revision"] += 1
+            else:
+                state["question"] = None
+            end
             if report["session"] != None:
                 state["wallet"] = report["session"]["wallet"]
             end
             state["status"] = "Ready · send another message"
+            if state["question"] != None:
+                state["status"] = "Waiting for your answer"
+            end
             state["busy"] = False
             call trim_state()
             else:
@@ -538,7 +556,12 @@ function snapshot(lite=False):
     if state["wallet"] != None:
         wallet = {"available": state["wallet"]["available"], "locked": state["wallet"]["locked"]}
     end
-    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
+    question = None
+    if state["question"] != None:
+        question = {"id": state["question"]["id"], "text": state["question"]["text"],
+                    "options": state["question"]["options"], "time": state["question"]["time"]}
+    end
+    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "question": question, "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
     call atomic_xchg(flags, 0, 0)
     return view
 end
@@ -607,6 +630,8 @@ function reset_conversation():
     state["budget"] = None
     state["tools"] = []
     state["payments"] = []
+    state["question"] = None
+    root_task["value"] = ""
     state["status"] = "New conversation · the wallet is created on the first purchase"
     state["messages_revision"] += 1
     state["audit_revision"] += 1
@@ -705,7 +730,7 @@ function route(client, request):
         call send_json(client, 200, {"user": user_public(user)})
         return
     end
-    if method == "POST" and (target == "/api/logout" or target == "/api/welcome-seen" or target == "/api/topup"
+    if method == "POST" and (target == "/api/answer" or target == "/api/logout" or target == "/api/welcome-seen" or target == "/api/topup"
             or target == "/api/topup/stripe" or target == "/api/topup/stripe/confirm" or target == "/api/topup/stripe/sandbox"
             or target == "/api/chat" or target == "/api/catalog" or target == "/api/cancel" or target == "/api/new"):
         who = authenticated(request)
@@ -730,6 +755,53 @@ function route(client, request):
             end
             call users_save()
             call send_json(client, 200, {"ok": True})
+            return
+        end
+        if target == "/api/answer":
+            payload = None
+            if type(request.get("body_text", None)) == "String":
+                try:
+                    payload = json.decode(request["body_text"])
+                else:
+                    payload = None
+                end
+            end
+            question_id = None
+            answer = None
+            if type(payload) == "Dictionary":
+                question_id = payload.get("question_id")
+                answer = payload.get("answer")
+            end
+            call lock()
+            pending = state["question"]
+            call unlock()
+            if pending == None:
+                call send_error_json(client, 409, "no question is waiting for an answer")
+                return
+            end
+            if type(question_id) == "String" and question_id != "" and question_id != String(pending["id"]):
+                call send_error_json(client, 409, "this question is no longer open")
+                return
+            end
+            if type(answer) != "String" or len(answer.strip()) == 0 or len(answer) > 2000:
+                call send_error_json(client, 400, "the answer must have 1 to 2000 characters")
+                return
+            end
+            if busy_now():
+                call send_error_json(client, 409, "The agent is still working; wait for it to finish.")
+                return
+            end
+            budget_holder["value"] = user_budget(who)
+            if root_task["value"] == "":
+                root_task["value"] = String(pending["task"])
+            end
+            prompt = "Original task: " + String(pending["task"]) + chr(10) + "Your question: " + String(pending["text"]) + chr(10) + "The user's answer: " + answer.strip() + chr(10) + "Now carry out the original task completely and autonomously. Ask again only if another required input is genuinely missing."
+            call lock()
+            state["question"] = None
+            call append_message("You", answer.strip())
+            call unlock()
+            call start("resume", prompt)
+            call send_json(client, 200, {"ok": True, "account": who})
             return
         end
         if target == "/api/topup/stripe" or target == "/api/topup/stripe/confirm" or target == "/api/topup/stripe/sandbox":
@@ -902,6 +974,7 @@ function route(client, request):
         end
         guard["last_chat"] = time.time()
         budget_holder["value"] = user_budget(who)
+        root_task["value"] = message
         call start("turn", message)
         call send_json(client, 200, {"ok": True, "account": who, "budget": budget_holder["value"]})
         return

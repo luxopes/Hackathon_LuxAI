@@ -62,7 +62,7 @@ function artifact_text(report, code="cs"):
     tests_label = "Testy:"
     syntax_note = "Kód prošel syntaktickou kontrolou, automaticky se nespouští."
     saved_label = "Uloženo: "
-    bug_mark = "CHYBA KOŠÍKU"
+    bug_mark = "NÁLEZ · CHYBA KOŠÍKU"
     expected_word = "očekáváno "
     got_word = ", získáno "
     if code == "en":
@@ -71,7 +71,7 @@ function artifact_text(report, code="cs"):
         tests_label = "Tests:"
         syntax_note = "The code passed syntax validation; it is not executed automatically."
         saved_label = "Saved: "
-        bug_mark = "CART BUG"
+        bug_mark = "AUDIT FINDING"
         expected_word = "expected "
         got_word = ", got "
     end
@@ -97,12 +97,20 @@ function artifact_text(report, code="cs"):
         end
         text += newline + saved_label + report["artifact_file"]
     else:
-        for check in result.get("checks", []):
+        findings = 0
+        cases = result.get("checks", [])
+        for check in cases:
             mark = "OK"
             if not check["passed"]:
                 mark = bug_mark
+                findings += 1
             end
             text += newline + mark + " · " + check["case_id"] + " · " + expected_word + String(check["expected_cents"]) + got_word + String(check["observed_cents"])
+        end
+        if findings > 0:
+            text += newline + newline + "Audit result: " + String(findings) + " of " + String(len(cases)) + " contracted checks found a defect in the cart. The audit delivered the missing evidence and is paid; the shop should fix its cart."
+        else:
+            text += newline + newline + "Audit result: all " + String(len(cases)) + " contracted checks passed; the cart behaves correctly."
         end
     end
     return text

@@ -1,7 +1,7 @@
 "use strict";
-// Agent console: polls the console state, renders the conversation, the seller
-// board, this session's tasks, the active turn and the live tool-call feed.
-// All money is simulated Lux Coins; the marketplace holds the ledger.
+// Lux Coins workspace console. Polls the console state and renders the
+// conversation, this session's tasks, the seller board, the live tool-call feed
+// and the wallet. Payments are simulated Lux Coins held by the marketplace.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -12,10 +12,36 @@ let lastAuditRev = -1;
 let previousBusy = false;
 let autoQueue = [];
 let autoNextAt = 0;
-let autoTotal = 0;
 let noticeUntil = 0;
-let offers = { list: [], byId: {}, sellers: {} };
 let tasksFilter = "";
+let searchTerm = "";
+let offers = { list: [], byId: {}, sellers: {} };
+
+/* ---------- capability presentation ---------- */
+const CAPABILITY = {
+  "http-cart-audit": { label: "Cart audit", tile: "data", short: "Three HTTP checks with receipts",
+    prompt: "Please audit the marketplace demo cart." },
+  "short-research": { label: "Research", tile: "research", short: "Live web sources via Apify",
+    prompt: "Please research agentic commerce and cite the sources." },
+  "python-code": { label: "Code", tile: "code", short: "Syntax-checked code with tests",
+    prompt: "Write a Python function slugify(text) with basic tests." },
+  "text-summary": { label: "Summary", tile: "design", short: "Concise summary of your text",
+    prompt: "Summarize this text: The agent locks the price in escrow, verifies the delivery and only then releases the payment." },
+  "translation": { label: "Translation", tile: "automation", short: "Any language pair you name",
+    prompt: "Translate into English: Náš agent ověří platbu a uvolní úschovu." },
+  "ideas": { label: "Ideas", tile: "design", short: "Five explained ideas",
+    prompt: "Give me five ideas for agent services in Prague." },
+};
+const ICON = {
+  "http-cart-audit": '<svg viewBox="0 0 24 24"><path d="M4 5h2l2 10h10l2-7H7"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg>',
+  "short-research": '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>',
+  "python-code": '<svg viewBox="0 0 24 24"><path d="m8.5 8-4 4 4 4M15.5 8l4 4-4 4"/></svg>',
+  "text-summary": '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h4M9 8h3"/></svg>',
+  "translation": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17"/></svg>',
+  "ideas": '<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>',
+  "agent": '<svg viewBox="0 0 24 24"><path d="M12 3 21 19H3Z"/></svg>',
+};
+const QUICK = ["http-cart-audit", "short-research", "python-code", "text-summary", "translation"];
 
 /* ---------- speech (ElevenLabs) ---------- */
 let audioPlayer = null;
@@ -24,34 +50,33 @@ let speakPhase = "idle";
 let autoVoice = localStorage.getItem("autoVoice") === "1";
 let lastSpokenContent = "";
 
-function showNotice(text, ms = 5000) {
-  $("status-line").textContent = text;
-  noticeUntil = Date.now() + ms;
-}
+function showNotice(text) { $("status-line").textContent = text; noticeUntil = Date.now() + 6000; }
 
 function refreshSpeakButtons() {
-  document.querySelectorAll(".speak").forEach((btn) => {
-    const index = Number(btn.dataset.index);
-    if (index !== speakIndex) { btn.textContent = "🔊"; btn.disabled = false; return; }
-    btn.textContent = speakPhase === "loading" ? "…" : speakPhase === "playing" ? "⏹" : speakPhase === "ready" ? "▶" : "🔊";
-    btn.disabled = speakPhase === "loading";
+  document.querySelectorAll(".speak").forEach((button) => {
+    const index = Number(button.dataset.index);
+    if (index !== speakIndex) { button.textContent = "🔊"; button.disabled = false; return; }
+    button.textContent = speakPhase === "loading" ? "…" : speakPhase === "playing" ? "⏹" : speakPhase === "ready" ? "▶" : "🔊";
+    button.disabled = speakPhase === "loading";
   });
 }
 
 function stopSpeech() {
   if (audioPlayer) { audioPlayer.pause(); audioPlayer = null; }
-  speakIndex = -1; speakPhase = "idle";
+  speakIndex = -1;
+  speakPhase = "idle";
   refreshSpeakButtons();
 }
 
 async function speakMessage(index) {
   if (speakIndex === index && speakPhase === "ready" && audioPlayer) {
-    try { await audioPlayer.play(); speakPhase = "playing"; refreshSpeakButtons(); } catch { /* stays ready */ }
+    try { await audioPlayer.play(); speakPhase = "playing"; refreshSpeakButtons(); } catch { /* keep ready */ }
     return;
   }
   if (speakIndex === index && speakPhase === "playing") { stopSpeech(); return; }
   stopSpeech();
-  speakIndex = index; speakPhase = "loading";
+  speakIndex = index;
+  speakPhase = "loading";
   refreshSpeakButtons();
   try {
     const resp = await fetch("api/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index }) });
@@ -83,7 +108,8 @@ async function autoSpeakIfEnabled() {
   try {
     const full = await (await fetch("api/state?t=" + Date.now())).json();
     if (!full || full.ok !== true || full.busy || !full.messages || !full.messages.length) return;
-    fullState = full; latest = full;
+    fullState = full;
+    latest = full;
     const last = full.messages[full.messages.length - 1];
     if (last.role !== "Agent" || last.content.length < 40 || last.content === lastSpokenContent) return;
     lastSpokenContent = last.content;
@@ -91,14 +117,15 @@ async function autoSpeakIfEnabled() {
   } catch { /* speech is optional */ }
 }
 
-/* ---------- message rendering ---------- */
+/* ---------- conversation ---------- */
 function linkify(text) {
   return esc(text).replace(/(https?:\/\/[^\s<>")]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 function renderBody(text) {
   const out = [];
-  let fence = null, pre = [];
+  let fence = null;
+  let pre = [];
   const flush = () => { if (pre.length) { const el = document.createElement("pre"); el.textContent = pre.join("\n"); out.push(el); pre = []; } };
   for (const raw of String(text).split("\n")) {
     if (raw.trim().startsWith("```")) { if (fence === null) fence = true; else { flush(); fence = null; } continue; }
@@ -120,8 +147,8 @@ function renderChat(messages) {
   const pinned = box.scrollTop + box.clientHeight >= box.scrollHeight - 80;
   box.replaceChildren();
   messages.forEach((message, index) => {
-    const wrap = document.createElement("div");
-    wrap.className = "msg " + (message.role === "You" ? "user" : "agent");
+    const row = document.createElement("div");
+    row.className = "msg " + (message.role === "You" ? "user" : "agent");
     const role = document.createElement("div");
     role.className = "role";
     role.textContent = message.role === "You" ? "You" : "Agent · LuxAI Flash";
@@ -137,105 +164,15 @@ function renderChat(messages) {
       speak.addEventListener("click", () => speakMessage(index));
       body.append(speak);
     }
-    wrap.append(role, body);
-    box.append(wrap);
+    row.append(role, body);
+    box.append(row);
   });
   if (pinned) box.scrollTop = box.scrollHeight;
   $("conv-count").textContent = messages.length + " messages";
   refreshSpeakButtons();
 }
 
-/* ---------- sellers board ---------- */
-const FALLBACK_SELLERS = [
-  { id: "scout", name: "Scout", desc: "Cheapest compact seller: research, code, summaries, translation and ideas.", offers: [
-    { capability: "text-summary", price: 2 }, { capability: "translation", price: 2 }, { capability: "ideas", price: 3 },
-    { capability: "short-research", price: 3 }, { capability: "python-code", price: 5 }] },
-  { id: "insight", name: "Insight Lab", desc: "Balanced tier with more context per delivery.", offers: [
-    { capability: "translation", price: 4 }, { capability: "text-summary", price: 4 }, { capability: "ideas", price: 5 },
-    { capability: "short-research", price: 6 }, { capability: "python-code", price: 9 }] },
-  { id: "atlas", name: "Atlas Studio", desc: "Detailed tier: extra edge cases, plus a cart audit with receipts.", offers: [
-    { capability: "translation", price: 6 }, { capability: "text-summary", price: 7 }, { capability: "ideas", price: 8 },
-    { capability: "short-research", price: 9 }, { capability: "http-cart-audit", price: 10 }, { capability: "python-code", price: 14 }] },
-  { id: "partial", name: "QuickCheck", desc: "Fastest cart audit. Deliberately incomplete: ships one of three promised checks.", offers: [
-    { capability: "http-cart-audit", price: 3 }] },
-  { id: "complete", name: "ThoroughCheck", desc: "Full three-check cart audit with execution receipts.", offers: [
-    { capability: "http-cart-audit", price: 7 }] },
-];
-const CAPABILITY_LABEL = { "http-cart-audit": "Cart audit", "short-research": "Research", "python-code": "Code",
-  "text-summary": "Summary", "translation": "Translation", "ideas": "Ideas" };
-const CAPABILITY_DESC = { "http-cart-audit": "Three HTTP cart checks with execution receipts (demo sandbox).",
-  "short-research": "Short brief from live web sources fetched via Apify.",
-  "python-code": "Small standard-library Python function with tests (syntax-checked).",
-  "text-summary": "Concise summary of the submitted text.", "translation": "Translation of the submitted text as requested.",
-  "ideas": "Exactly five explained ideas." };
-const CAPABILITY_ICON = {
-  "http-cart-audit": '<svg viewBox="0 0 24 24"><path d="M4 5h2l2 10h10l2-7H7"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg>',
-  "short-research": '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>',
-  "python-code": '<svg viewBox="0 0 24 24"><path d="m8.5 8-4 4 4 4M15.5 8l4 4-4 4"/></svg>',
-  "text-summary": '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h4M9 8h3"/></svg>',
-  "translation": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17"/></svg>',
-  "ideas": '<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>',
-};
-
-function renderAgents() {
-  const grid = $("agents-grid");
-  grid.replaceChildren();
-  const sellers = offers.list.length ? offers.sellers : Object.fromEntries(FALLBACK_SELLERS.map((s) => [s.id, s]));
-  for (const seller of Object.values(sellers)) {
-    const cheapest = seller.offers.reduce((best, offer) => (best === null || offer.price < best.price ? offer : best), null);
-    const capability = cheapest ? cheapest.capability : "short-research";
-    const card = document.createElement("div");
-    card.className = "agent-card";
-    const tile = document.createElement("div");
-    tile.className = "tile " + capability;
-    tile.innerHTML = CAPABILITY_ICON[capability] || CAPABILITY_ICON["short-research"];
-    const head = document.createElement("div");
-    head.className = "head";
-    const text = document.createElement("div");
-    text.innerHTML = `<div class="name">${esc(seller.name)}</div>
-      <div class="state"><span class="dot ok"></span>Online</div>`;
-    head.append(tile, text);
-    const desc = document.createElement("div");
-    desc.className = "desc";
-    desc.textContent = seller.desc || CAPABILITY_DESC[capability] || "";
-    const tags = document.createElement("div");
-    tags.className = "tags";
-    const unique = [...new Set(seller.offers.map((offer) => offer.capability))];
-    unique.forEach((item) => {
-      const tag = document.createElement("span");
-      tag.className = "tag-pill";
-      tag.textContent = CAPABILITY_LABEL[item] || item;
-      tags.append(tag);
-    });
-    const price = document.createElement("div");
-    price.className = "price";
-    price.innerHTML = `${cheapest ? cheapest.price : "?"} <span>LC / task</span>`;
-    const hire = document.createElement("button");
-    hire.className = "hire";
-    hire.textContent = "Hire";
-    hire.title = `Order from ${seller.name}`;
-    hire.addEventListener("click", () => {
-      $("input").value = hirePrompt(capability);
-      $("input").focus();
-      showNotice(`Task drafted for ${seller.name} — press Send.`);
-    });
-    card.append(head, desc, tags, price, hire);
-    grid.append(card);
-  }
-}
-
-function hirePrompt(capability) {
-  return {
-    "http-cart-audit": "Please audit the marketplace demo cart.",
-    "short-research": "Please research agentic commerce and cite the sources.",
-    "python-code": "Write a Python function slugify(text) with basic tests.",
-    "text-summary": "Summarize this text: The agent locks the price in escrow, verifies the delivery and only then releases the payment.",
-    "translation": "Translate into English: Náš agent ověří platbu a uvolní úschovu.",
-    "ideas": "Give me five ideas for agent services in Prague.",
-  }[capability] || "Please audit the marketplace demo cart.";
-}
-
-/* ---------- payments / tasks ---------- */
+/* ---------- payments helpers ---------- */
 function parsePayment(entry) {
   const parts = (entry.summary || "").split(" · ");
   const lines = entry.lines || [];
@@ -243,168 +180,234 @@ function parsePayment(entry) {
     const line = lines.find((item) => item.startsWith(prefix));
     return line ? line.slice(prefix.length).trim() : "";
   };
-  const times = [...(entry.summary || "").matchAll(/(\d{4}-\d{2}-\d{2}T[\d:.+]+)/g)];
   let stamp = pick("Ledger ID: ").split("time: ")[1] || "";
-  if (!stamp) stamp = times.length ? times[times.length - 1][1] : "";
-  const offerId = pick("Offer: ");
-  const offer = offers.byId[offerId] || {};
+  if (!stamp) {
+    const matches = [...(entry.summary || "").matchAll(/(\d{4}-\d{2}-\d{2}T[\d:.+]+)/g)];
+    stamp = matches.length ? matches[matches.length - 1][1] : "";
+  }
+  const offer = offers.byId[pick("Offer: ")] || {};
   const amount = parseInt((parts[1] || "0").replace(/[^0-9]/g, ""), 10) || 0;
   return { id: entry.id, state: parts[0] || "", amount, seller: parts[2] || "", job: parts[3] || entry.id,
-           capability: offer.capability || "", service: offer.service_name || CAPABILITY_LABEL[offer.capability] || "",
-           stamp };
+           capability: offer.capability || "short-research", stamp };
 }
 
 function formatWhen(stamp) {
   if (!stamp) return "—";
   const parsed = new Date(stamp);
-  if (isNaN(parsed)) return "—";
-  return parsed.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return isNaN(parsed) ? "—" : parsed.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+function relative(stamp) {
+  if (!stamp) return "—";
+  const parsed = new Date(stamp);
+  if (isNaN(parsed)) return "—";
+  const seconds = Math.max(0, (Date.now() - parsed.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return Math.round(seconds / 60) + " min ago";
+  if (seconds < 86400) return Math.round(seconds / 3600) + " h ago";
+  return Math.round(seconds / 86400) + " d ago";
+}
+
+/* ---------- tasks table ---------- */
 function renderTasks(payments) {
-  const table = $("tasks-table");
-  [...table.querySelectorAll("tr:not(:first-child)")].forEach((row) => row.remove());
+  const body = $("tasks-table").querySelector("tbody");
+  body.replaceChildren();
   const counts = { "": payments.length, PAID: 0, REFUNDED: 0 };
-  payments.forEach((entry) => {
+  for (const entry of payments) {
     const payment = parsePayment(entry);
     if (counts[payment.state] !== undefined) counts[payment.state] += 1;
+    const meta = CAPABILITY[payment.capability] || { label: "Service", tile: "research" };
     const row = document.createElement("tr");
     row.dataset.state = payment.state;
-    row.innerHTML = `<td><div class="title">${esc(payment.service || payment.capability || "Service")}</div>
-        <div class="sub">${esc(payment.job)}</div></td>
-      <td><span class="tx-title">${esc(payment.seller)}</span></td>
-      <td><span class="pill ${payment.state === "PAID" ? "ok" : payment.state === "REFUNDED" ? "warn" : "neutral"}">${esc(payment.state)}</span></td>
-      <td class="tx-time">${esc(formatWhen(payment.stamp))}</td>
-      <td><a href="../receipt/${esc(payment.id)}" target="_blank" rel="noopener">receipt ↗</a></td>`;
-    if (tasksFilter && payment.state !== tasksFilter) row.style.display = "none";
-    table.append(row);
-  });
+    row.dataset.search = (payment.job + " " + payment.seller + " " + meta.label).toLowerCase();
+    row.innerHTML = `<td><div class="task-cell"><span class="agent-icon ${meta.tile}">${ICON[payment.capability] || ICON.agent}</span>
+        <span><b>${esc(meta.label)}</b><small>${esc(payment.job)}</small></span></div></td>
+      <td><span class="avatars"><span class="avatar">${esc(payment.seller.slice(0, 2).toUpperCase())}</span></span></td>
+      <td><span class="badge ${payment.state === "PAID" ? "completed" : "failed"}">${payment.state === "PAID" ? "Paid" : "Refunded"}</span></td>
+      <td>${payment.amount}.00 LC</td>
+      <td>${esc(relative(payment.stamp))}</td>
+      <td><a class="text-button" href="../receipt/${esc(payment.id)}" target="_blank" rel="noopener">receipt →</a></td>`;
+    row.addEventListener("click", (event) => {
+      if (event.target.tagName === "A") return;
+      window.open("../receipt/" + payment.id, "_blank", "noopener");
+    });
+    if ((tasksFilter && payment.state !== tasksFilter) || !row.dataset.search.includes(searchTerm)) row.style.display = "none";
+    body.append(row);
+  }
   $("cnt-all").textContent = counts[""];
   $("cnt-paid").textContent = counts.PAID;
   $("cnt-refunded").textContent = counts.REFUNDED;
   if (!payments.length) {
     const row = document.createElement("tr");
-    row.innerHTML = '<td colspan="5" class="sub" style="padding:14px 18px">No tasks yet — send a request or run the auto demo.</td>';
-    table.append(row);
+    row.innerHTML = '<td colspan="6"><div class="empty">No tasks yet — create one or run the auto demo.</div></td>';
+    body.append(row);
   }
 }
 
-function renderTransactions(payments) {
-  const box = $("tx-body");
-  box.replaceChildren();
-  const recent = payments.slice(-5).reverse();
-  if (!recent.length) {
-    box.innerHTML = '<div class="muted pad">No transactions yet.</div>';
-    return;
-  }
-  for (const entry of recent) {
-    const payment = parsePayment(entry);
-    const incoming = payment.state === "REFUNDED";
-    const row = document.createElement("div");
-    row.className = "tx-row";
-    row.innerHTML = `<span class="tx-icon ${incoming ? "down" : "up"}">${incoming
-        ? '<svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>'
-        : '<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>'}</span>
-      <span class="tx-main"><span class="tx-title">${incoming ? "Refund from" : "Payment to"} ${esc(payment.seller)}</span>
-        <span class="tx-sub">${esc(payment.service || payment.capability || "service")} · ${esc(payment.job)}</span></span>
-      <span class="tx-right"><span class="tx-amount ${incoming ? "down" : "up"}">${incoming ? "+" : "−"}${payment.amount} LC</span>
-        <span class="tx-time">${esc(formatWhen(payment.stamp))}</span></span>`;
-    row.addEventListener("click", () => window.open("../receipt/" + payment.id, "_blank", "noopener"));
-    row.style.cursor = "pointer";
-    box.append(row);
-  }
-}
-
-/* ---------- live activity ---------- */
-function renderActivity(tools, force) {
-  const box = $("activity-body");
-  const signature = tools.map((tool) => tool.id + tool.summary).join("|");
-  if (!force && box.dataset.signature === signature) return;
-  box.dataset.signature = signature;
-  box.replaceChildren();
-  const recent = tools.slice(-8).reverse();
-  if (!recent.length) {
-    box.innerHTML = '<div class="muted pad">No tool calls yet.</div>';
-    return;
-  }
-  for (const tool of recent) {
-    const parts = (tool.summary || "").split(" · ");
-    const source = (parts[2] || "").toLowerCase();
-    const dotClass = parts[0] === "RUNNING" ? "running" : parts[0] === "ERROR" ? "error"
-      : source.includes("flash") ? "flash" : source.includes("lsl") ? "lsl" : "http";
-    const row = document.createElement("div");
-    row.className = "act-row";
-    row.innerHTML = `<span class="act-dot ${dotClass}"></span>
-      <span class="tx-main"><span class="act-name">${esc(parts[1] || tool.id)}</span>
-        <span class="act-sub">${esc(parts[2] || "")}${parts[3] ? " · " + esc(parts[3]) : ""}</span></span>`;
-    const name = row.querySelector(".act-name");
-    name.addEventListener("click", () => {
-      let detail = row.querySelector(".act-detail");
-      if (detail) { detail.remove(); return; }
-      detail = document.createElement("div");
-      detail.className = "act-detail";
-      detail.dataset.id = tool.id;
-      detail.textContent = (tool.lines || []).join("\n");
-      row.querySelector(".tx-main").append(detail);
-    });
-    box.append(row);
-  }
-  $("activity-count").textContent = tools.length + " calls";
-}
-
-/* ---------- active task / wallet / system ---------- */
-const AVATAR_TINTS = ["green", "purple", "blue"];
-function renderActive(st) {
+/* ---------- stats, balance ---------- */
+function renderStats(st) {
+  const payments = (fullState && fullState.payments) || [];
+  const parsed = payments.map(parsePayment);
+  const paid = parsed.filter((payment) => payment.state === "PAID");
   const busy = st.busy;
-  const payments = st.payments || [];
-  const percent = busy ? 42 : payments.length ? 100 : 0;
-  $("active-state-pill").innerHTML = busy ? '<span class="pill blue">In progress</span>' : '<span class="pill ok">Ready</span>';
-  $("active-percent").textContent = percent + "%";
-  $("active-title").textContent = busy ? "Working on your request" : (payments.length ? "Last task settled" : "No task running");
-  $("active-sub").textContent = (st.status || "Waiting for a request…");
-  const bar = $("active-bar");
-  bar.style.width = percent + "%";
-  bar.style.background = busy ? "var(--amber)" : "var(--green)";
-  const sellers = [...new Set(payments.map((entry) => (entry.summary || "").split(" · ")[2]).filter(Boolean))].slice(-3);
-  const avatars = $("active-avatars");
-  avatars.replaceChildren();
-  if (sellers.length) {
-    sellers.forEach((seller, index) => {
-      const mini = document.createElement("span");
-      mini.className = "mini " + AVATAR_TINTS[index % AVATAR_TINTS.length];
-      mini.textContent = seller.slice(0, 2).toUpperCase();
-      mini.title = seller;
-      avatars.append(mini);
-    });
-    const note = document.createElement("span");
-    note.className = "muted";
-    note.style.cssText = "font-size:12px;align-self:center;margin-left:4px";
-    note.textContent = sellers.length + " seller" + (sellers.length > 1 ? "s" : "") + " working";
-    avatars.append(note);
-  } else {
-    const note = document.createElement("span");
-    note.className = "muted";
-    note.style.fontSize = "12px";
-    note.textContent = "No sellers engaged yet";
-    avatars.append(note);
-  }
-  $("active-counts").textContent = `${st.tool_count || 0} calls · ${payments.length} payments`;
+  $("stat-active").textContent = busy ? "1" : "0";
+  $("stat-active-note").textContent = busy ? "In progress" : "Nothing running";
+  $("stat-completed").textContent = String(paid.length);
+  $("stat-completed-note").textContent = paid.length ? "Paid in this session" : "Delivered in this session";
+  $("stat-spent").textContent = paid.reduce((sum, payment) => sum + payment.amount, 0) + " LC";
+  const sellers = Object.keys(offers.sellers).length || 5;
+  $("stat-agents").textContent = String(sellers);
+  $("stat-agents-note").textContent = busy ? "1 running" : "Ready for a new task";
 }
 
 function renderWallet(st) {
   const available = st.wallet ? st.wallet.available : null;
   const locked = st.wallet ? st.wallet.locked : 0;
-  $("wallet-total").textContent = available === null ? "—" : (available + locked);
-  $("wallet-available").textContent = available === null ? "—" : available + " LC";
-  $("wallet-locked").textContent = locked + " LC";
-  $("wallet-budget").textContent = st.budget != null ? st.budget + " LC" : "—";
+  const budget = st.budget != null ? st.budget : null;
+  $("side-balance").innerHTML = (available === null ? "—" : available) + "<small> LC</small>";
+  $("balance-total").innerHTML = (available === null ? "—" : available + locked) + "<small> LC</small>";
+  $("balance-note").textContent = available === null ? "Demo credits only"
+    : `available ${available} · in escrow ${locked}${budget ? " · budget " + budget : ""}`;
+  $("balance-bar").style.width = available === null || !budget ? "100%" : Math.min(100, Math.round(((available + locked) / budget) * 100)) + "%";
+  $("task-budget").value = budget ? budget + " LC (wallet budget)" : "—";
+}
+
+/* ---------- sellers board ---------- */
+const FALLBACK_SELLERS = {
+  scout: { id: "scout", name: "Scout", offers: [{ capability: "text-summary", price: 2 }, { capability: "translation", price: 2 },
+    { capability: "ideas", price: 3 }, { capability: "short-research", price: 3 }, { capability: "python-code", price: 5 }] },
+  insight: { id: "insight", name: "Insight Lab", offers: [{ capability: "translation", price: 4 }, { capability: "text-summary", price: 4 },
+    { capability: "ideas", price: 5 }, { capability: "short-research", price: 6 }, { capability: "python-code", price: 9 }] },
+  atlas: { id: "atlas", name: "Atlas Studio", offers: [{ capability: "translation", price: 6 }, { capability: "text-summary", price: 7 },
+    { capability: "ideas", price: 8 }, { capability: "short-research", price: 9 }, { capability: "http-cart-audit", price: 10 }, { capability: "python-code", price: 14 }] },
+  partial: { id: "partial", name: "QuickCheck", offers: [{ capability: "http-cart-audit", price: 3 }] },
+  complete: { id: "complete", name: "ThoroughCheck", offers: [{ capability: "http-cart-audit", price: 7 }] },
+};
+
+function renderAgents() {
+  const grid = $("agents-grid");
+  grid.replaceChildren();
+  const sellers = offers.list.length ? offers.sellers : FALLBACK_SELLERS;
+  for (const seller of Object.values(sellers)) {
+    const cheapest = seller.offers.reduce((best, offer) => (best === null || offer.price < best.price ? offer : best), null);
+    const capability = cheapest ? cheapest.capability : "short-research";
+    const meta = CAPABILITY[capability] || CAPABILITY["short-research"];
+    const tags = [...new Set(seller.offers.map((offer) => (CAPABILITY[offer.capability] || {}).label).filter(Boolean))];
+    const card = document.createElement("div");
+    card.className = "agent-card";
+    card.dataset.search = (seller.name + " " + tags.join(" ")).toLowerCase();
+    card.innerHTML = `<div class="agent-card-head"><span class="agent-icon ${meta.tile}">${ICON[capability] || ICON.agent}</span>
+        <span><b>${esc(seller.name)}</b><p>${esc(tags.slice(0, 3).join(", ")) || "Services"}</p></span></div>
+      <div class="agent-card-bottom"><span class="available">Available</span><span>${cheapest ? cheapest.price : "?"}.00 LC / task</span></div>`;
+    const hire = document.createElement("button");
+    hire.className = "hire";
+    hire.textContent = "Hire";
+    hire.addEventListener("click", () => openDialog(seller.offers[0].capability, seller));
+    card.append(hire);
+    if (!card.dataset.search.includes(searchTerm)) card.style.display = "none";
+    grid.append(card);
+  }
+}
+
+/* ---------- quick start ---------- */
+function renderQuick() {
+  const list = $("quick-list");
+  list.replaceChildren();
+  for (const capability of QUICK) {
+    const meta = CAPABILITY[capability];
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "quick-item";
+    item.innerHTML = `<span class="agent-icon ${meta.tile}">${ICON[capability]}</span>
+      <span><b>${esc(meta.label)}</b><small>${esc(meta.short)}</small></span><span class="chev">›</span>`;
+    item.addEventListener("click", () => openDialog(capability));
+    list.append(item);
+  }
+}
+
+/* ---------- activity ---------- */
+function renderActivity(tools) {
+  const box = $("activity-list");
+  const signature = tools.map((tool) => tool.id + tool.summary).join("|");
+  if (box.dataset.signature === signature) return;
+  box.dataset.signature = signature;
+  box.replaceChildren();
+  const recent = tools.slice(-6).reverse();
+  if (!recent.length) {
+    box.innerHTML = '<div class="empty">No tool calls yet.</div>';
+    return;
+  }
+  for (const tool of recent) {
+    const parts = (tool.summary || "").split(" · ");
+    const source = (parts[2] || "").toLowerCase();
+    const tile = parts[0] === "ERROR" ? "design" : source.includes("flash") ? "research" : source.includes("lsl") ? "data" : "code";
+    const glyph = parts[0] === "ERROR" ? ICON.ideas : source.includes("flash") ? ICON["short-research"]
+      : source.includes("lsl") ? ICON["http-cart-audit"] : ICON["python-code"];
+    const started = (tool.lines || []).find((line) => line.startsWith("Started: "));
+    const stamp = started ? new Date(parseFloat(started.slice(9).trim()) * 1000) : null;
+    const item = document.createElement("div");
+    item.className = "activity-item";
+    item.innerHTML = `<span class="agent-icon ${tile}">${glyph}</span>
+      <span><b>${esc(parts[1] || tool.id)}</b><p>${esc(parts[2] || "")}${parts[3] ? " · " + esc(parts[3]) : ""}</p></span>
+      <time>${stamp ? stamp.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}</time>`;
+    const name = item.querySelector("b");
+    name.style.cursor = "pointer";
+    name.addEventListener("click", () => {
+      const existing = item.querySelector(".activity-detail");
+      if (existing) { existing.remove(); return; }
+      const detail = document.createElement("div");
+      detail.className = "activity-detail";
+      detail.textContent = (tool.lines || []).join("\n");
+      item.querySelector("span:nth-child(2)").append(detail);
+    });
+    box.append(item);
+  }
 }
 
 function renderSystem(st) {
-  const target = $("sys-inline");
-  if (!target) return;
-  const model = st.ai_model === "flash" ? "LuxAI Flash" : st.ai_model;
-  target.textContent = `${model} · ${st.currency} (${st.simulated_payments ? "simulated" : "?"}) · ${st.tool_count || 0} tool calls · ${st.payment_count || 0} receipts`;
+  $("sys-inline").textContent = `LuxAI Flash · ${st.currency} (${st.simulated_payments ? "simulated" : "?"}) · ${st.tool_count || 0} tool calls · ${st.payment_count || 0} receipts · structural checks only`;
+}
+
+/* ---------- task dialog ---------- */
+function openDialog(capability, seller) {
+  const select = $("task-agent");
+  const current = seller ? seller.id : "";
+  select.replaceChildren();
+  const cheapest = document.createElement("option");
+  cheapest.value = "";
+  cheapest.textContent = "Cheapest matching seller";
+  select.append(cheapest);
+  for (const item of Object.values(offers.list.length ? offers.sellers : FALLBACK_SELLERS)) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item.name;
+    select.append(option);
+  }
+  select.value = current;
+  if (capability && CAPABILITY[capability]) $("task-description").value = CAPABILITY[capability].prompt;
+  else if (!$("task-description").value) $("task-description").value = "";
+  $("task-dialog").showModal();
+  $("task-description").focus();
+}
+
+async function submitTask() {
+  const description = $("task-description").value.trim();
+  if (description.length < 5) return;
+  const sellerId = $("task-agent").value;
+  const seller = sellerId ? (offers.sellers[sellerId] || FALLBACK_SELLERS[sellerId]) : null;
+  const message = (seller ? `Prefer ${seller.name}'s offer. ` : "") + description;
+  $("task-dialog").close();
+  try {
+    const resp = await fetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+    if (resp.status !== 200) {
+      const err = await resp.json().catch(() => ({}));
+      showNotice((err.error || "Error") + " · HTTP " + resp.status);
+    } else {
+      showNotice("Task sent — the agent is working.");
+    }
+  } catch {
+    showNotice("Request failed — check the connection.");
+  }
 }
 
 /* ---------- actions ---------- */
@@ -420,18 +423,7 @@ async function sendMessage(text) {
   return false;
 }
 
-async function send() {
-  const text = $("input").value.trim();
-  if (!text) return;
-  if (latest && latest.busy) { showNotice("The agent is still working — send after it finishes."); return; }
-  try {
-    if (await sendMessage(text)) $("input").value = "";
-  } catch {
-    showNotice("Request failed — check the connection.");
-  }
-}
-
-async function stopTurn() { try { await post("api/cancel"); } catch { /* polling shows state */ } }
+async function stopTurn() { try { await post("api/cancel"); } catch { /* state follows */ } }
 
 async function refreshCatalog() {
   try {
@@ -447,57 +439,43 @@ async function newConversation() {
   if (!window.confirm("Start a new conversation? Wallets and the ledger stay on the marketplace; the next purchase creates a new wallet.")) return;
   try {
     const resp = await post("api/new");
-    if (resp.status === 200) {
-      lastMessagesRev = -1; lastAuditRev = -1; lastSpokenContent = "";
-      renderChat([]);
-    }
-  } catch { /* polling shows state */ }
+    if (resp.status === 200) { lastMessagesRev = -1; lastAuditRev = -1; lastSpokenContent = ""; renderChat([]); }
+  } catch { /* state follows */ }
 }
 
-const AUTO_STEPS = [
-  "What is on offer right now and at what prices?",
-  "Please audit the marketplace demo cart.",
-];
+const AUTO_STEPS = ["What is on offer right now and at what prices?", "Please audit the marketplace demo cart."];
 
 function startAutoDemo() {
   if (autoQueue.length) return;
   if (latest && latest.busy) { showNotice("The agent is still working; the auto demo will not start."); return; }
   autoQueue = AUTO_STEPS.slice();
-  autoTotal = autoQueue.length;
   autoNextAt = Date.now() + 300;
 }
 
 function autoTick(st) {
-  if (!autoQueue.length) { if (autoTotal > 0 && !st.busy) autoTotal = 0; return; }
+  if (!autoQueue.length) return;
   if (st.busy || Date.now() < autoNextAt) return;
   const message = autoQueue.shift();
   autoNextAt = Date.now() + 4000;
-  sendMessage(message)
-    .then((ok) => { if (!ok) { autoQueue.unshift(message); autoNextAt = Date.now() + 6000; } })
+  sendMessage(message).then((ok) => { if (!ok) { autoQueue.unshift(message); autoNextAt = Date.now() + 6000; } })
     .catch(() => { autoQueue.unshift(message); autoNextAt = Date.now() + 6000; });
 }
 
-/* ---------- polling ---------- */
+/* ---------- data loading and polling ---------- */
 async function loadOffers() {
   try {
     const resp = await fetch("../api/offers");
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
-    const list = data.offers || [];
-    offers = { list, byId: {}, sellers: {} };
-    for (const offer of list) {
+    offers = { list: data.offers || [], byId: {}, sellers: {} };
+    for (const offer of offers.list) {
       offers.byId[offer.id] = offer;
-      const seller = offers.sellers[offer.seller_id] || (offers.sellers[offer.seller_id] = {
-        id: offer.seller_id, name: offer.name, offers: [], desc: "" });
+      const seller = offers.sellers[offer.seller_id] || (offers.sellers[offer.seller_id] = { id: offer.seller_id, name: offer.name, offers: [] });
       seller.offers.push(offer);
     }
-    for (const seller of Object.values(offers.sellers)) {
-      seller.offers.sort((a, b) => a.price - b.price);
-      const caps = [...new Set(seller.offers.map((offer) => offer.capability))];
-      seller.desc = caps.map((cap) => CAPABILITY_LABEL[cap] || cap).join(" · ") + " — from " + seller.offers[0].price + " LC.";
-    }
+    for (const seller of Object.values(offers.sellers)) seller.offers.sort((a, b) => a.price - b.price);
   } catch {
-    offers = { list: [], byId: {}, sellers: {} };   // local dev: fall back to the built-in list
+    offers = { list: [], byId: {}, sellers: {} };
   }
   renderAgents();
 }
@@ -510,26 +488,27 @@ async function poll() {
     if (!st || st.ok !== true) throw new Error("invalid state");
     latest = st;
     renderWallet(st);
-    renderActive(st);
-    $("conn-dot").className = "dot " + (st.busy ? "busy" : "ok");
-    $("conn-status").textContent = autoQueue.length || (st.busy && autoTotal > 0)
-      ? "Auto demo · step " + Math.min(autoTotal - autoQueue.length, autoTotal) + "/" + autoTotal
-      : st.status;
-    if (Date.now() >= noticeUntil) $("status-line").textContent = (st.busy ? "⟳ " : "") + st.status;
-    $("btn-send").disabled = st.busy;
+    renderStats(st);
+    if (Date.now() >= noticeUntil) {
+      $("status-line").textContent = autoQueue.length ? `Auto demo · step ${Math.min(AUTO_STEPS.length - autoQueue.length, AUTO_STEPS.length)}/${AUTO_STEPS.length}`
+        : (st.busy ? "⟳ " : "") + st.status;
+    }
     $("btn-catalog").disabled = st.busy;
     $("btn-auto").disabled = st.busy || autoQueue.length > 0;
     $("btn-stop").hidden = !st.busy;
+    $("dialog-submit").disabled = st.busy;
     if (st.messages_revision !== lastMessagesRev || st.audit_revision !== lastAuditRev) {
       const full = await (await fetch("api/state?t=" + Date.now())).json();
       if (full && full.ok === true) {
-        fullState = full; latest = full;
-        renderWallet(full); renderActive(full); renderSystem(full);
+        fullState = full;
+        latest = full;
+        renderWallet(full);
+        renderStats(full);
+        renderSystem(full);
         if (full.messages_revision !== lastMessagesRev) { lastMessagesRev = full.messages_revision; renderChat(full.messages); }
         if (full.audit_revision !== lastAuditRev) {
           lastAuditRev = full.audit_revision;
           renderTasks(full.payments || []);
-          renderTransactions(full.payments || []);
           renderActivity(full.tools || []);
         }
       }
@@ -538,34 +517,41 @@ async function poll() {
     previousBusy = st.busy;
     autoTick(latest);
   } catch (error) {
-    $("conn-dot").className = "dot err";
-    $("conn-status").textContent = "Connection failed";
     showNotice("Server unavailable: " + error.message);
   }
   setTimeout(poll, 500);
 }
 
 /* ---------- wiring ---------- */
-document.querySelectorAll(".chip[data-fill]").forEach((chip) => {
-  chip.addEventListener("click", () => { $("input").value = chip.dataset.fill; $("input").focus(); });
+const openers = ["side-create", "hero-create", "right-create", "tasks-new"];
+openers.forEach((id) => { const el = $(id); if (el) el.addEventListener("click", () => openDialog()); });
+$("hero-auto").addEventListener("click", startAutoDemo);
+$("btn-auto").addEventListener("click", startAutoDemo);
+$("btn-stop").addEventListener("click", stopTurn);
+$("btn-catalog").addEventListener("click", refreshCatalog);
+$("btn-new").addEventListener("click", newConversation);
+$("dialog-close").addEventListener("click", () => $("task-dialog").close());
+$("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
+$("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });
+$("search").addEventListener("input", (event) => {
+  searchTerm = event.target.value.trim().toLowerCase();
+  if (fullState) renderTasks(fullState.payments || []);
+  renderAgents();
 });
-document.querySelectorAll("#tasks-filters .chip").forEach((chip) => {
+document.addEventListener("keydown", (event) => {
+  if (event.key === "/" && document.activeElement !== $("search")) { event.preventDefault(); $("search").focus(); }
+});
+document.querySelectorAll(".filter").forEach((chip) => {
   chip.addEventListener("click", () => {
-    document.querySelectorAll("#tasks-filters .chip").forEach((other) => other.classList.remove("active"));
+    document.querySelectorAll(".filter").forEach((other) => other.classList.remove("active"));
     chip.classList.add("active");
     tasksFilter = chip.dataset.state;
     if (fullState) renderTasks(fullState.payments || []);
   });
 });
-$("btn-send").addEventListener("click", send);
-$("btn-stop").addEventListener("click", stopTurn);
-$("btn-auto").addEventListener("click", startAutoDemo);
-$("btn-catalog").addEventListener("click", refreshCatalog);
-$("btn-new").addEventListener("click", newConversation);
-$("btn-new-2").addEventListener("click", newConversation);
-$("input").addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); }
-});
+$("side-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
+$("top-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
+$("top-agents").addEventListener("click", (event) => { event.preventDefault(); $("agents").scrollIntoView({ behavior: "smooth" }); });
 const voiceBox = $("chk-voice");
 voiceBox.checked = autoVoice;
 voiceBox.addEventListener("change", () => {
@@ -573,6 +559,6 @@ voiceBox.addEventListener("change", () => {
   localStorage.setItem("autoVoice", autoVoice ? "1" : "0");
   if (!autoVoice) stopSpeech();
 });
-$("input").focus();
+renderQuick();
 loadOffers();
 poll();

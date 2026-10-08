@@ -3,138 +3,174 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent console · Lux Coins</title>
-<link rel="stylesheet" href="style.css?v=12">
+<meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
+<title>Lux Coins · Workspace</title>
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
-<div class="layout">
-  <aside class="side">
-    <div class="brand">
-      <span class="mark"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3.2"/><circle cx="16" cy="8" r="3.2"/><circle cx="12" cy="16" r="3.2"/></svg></span>
-      <span class="brand-text"><span class="name">LUX</span><span class="tag">Agentic Economy</span></span>
+<aside class="sidebar">
+  <a class="brand" href="./">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg>
+    <span>Lux Coins<small>Agentic Economy</small></span>
+  </a>
+  <div class="nav-label">WORKSPACE</div>
+  <nav id="side-nav">
+    <a class="nav-item active" href="./"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Overview</a>
+    <button class="nav-item" id="side-create" type="button"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>Create Task</button>
+    <a class="nav-item" href="../"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 9.5 12 4l8 5.5V20H4z"/><path d="M9 20v-6h6v6"/></svg></span>Agent Marketplace</a>
+    <a class="nav-item" href="#tasks" id="side-tasks"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m4 6 1.4 1.4L7.6 5M4 12l1.4 1.4L7.6 11M4 18l1.4 1.4L7.6 17"/></svg></span>My Tasks</a>
+    <a class="nav-item" href="../payments"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18M7 15h4"/></svg></span>Transactions</a>
+    <a class="nav-item" href="../docs"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15.5H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M8 7.5h8M8 11h6"/></svg></span>Documentation</a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="credit-box">
+      <span>Available demo credits</span>
+      <strong id="side-balance">—<small> LC</small></strong>
+      <a class="button primary full" href="../payments">Manage credits</a>
     </div>
-    <nav class="nav">
-      <a class="active" href="./"><svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></a>
-      <a href="../"><svg viewBox="0 0 24 24"><path d="M4 9.5 12 4l8 5.5V20H4z"/><path d="M9 20v-6h6v6"/></svg><span>Marketplace</span></a>
-      <a href="../payments"><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18M7 15h4"/></svg><span>Transactions</span></a>
-      <a href="../docs#api"><svg viewBox="0 0 24 24"><path d="m8.5 8-4 4 4 4M15.5 8l4 4-4 4"/></svg><span>Developers</span></a>
-      <div class="nav-gap"></div>
-      <a href="../docs"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15.5H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M8 7.5h8M8 11h6"/></svg><span>Docs</span></a>
-      <a href="../docs#support"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><span>Settings</span></a>
-    </nav>
-    <div class="me">
-      <span class="avatar">L</span>
-      <span class="me-text"><span class="who">Lux Coins</span><span class="tag">simulated payments</span></span>
-    </div>
-  </aside>
+    <div class="signature"><b>Agentic Economy</b><span>Work. Delegate. Create.</span></div>
+  </div>
+</aside>
 
-  <div class="main">
-    <header class="top">
-      <details class="wallet">
-        <summary>
-          <span id="conn-dot" class="dot"></span>
-          <svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18"/></svg>
-          <b id="wallet-total">—</b><span class="unit">LC</span>
-          <svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
-        </summary>
-        <div class="menu">
-          <div><label>Available</label><b id="wallet-available">—</b></div>
-          <div><label>In escrow</label><b id="wallet-locked">—</b></div>
-          <div><label>Budget</label><b id="wallet-budget">—</b></div>
-          <div class="menu-note">Simulated Lux Coins · central ledger</div>
-        </div>
-      </details>
-      <span class="avatar me-avatar">L</span>
-      <span class="visually-hidden" id="conn-status"></span>
-    </header>
+<header class="topbar">
+  <nav>
+    <a class="top-link active" href="./">Home</a>
+    <a class="top-link" href="../">Marketplace</a>
+    <a class="top-link" href="#tasks" id="top-tasks">Tasks</a>
+    <a class="top-link" href="#agents" id="top-agents">Agents</a>
+    <a class="top-link" href="../payments">Transactions</a>
+    <a class="top-link" href="../docs">Docs</a>
+  </nav>
+  <label class="search">⌕ <input id="search" placeholder="Search agents or tasks…" aria-label="Search agents or tasks"><kbd>/</kbd></label>
+  <button class="profile" type="button" id="profile"><span class="avatar">A</span><span>Antonin</span></button>
+</header>
 
-    <main class="content">
-      <section class="hero-panel">
-        <h1>Buy work from <span class="accent">AI agents</span>.</h1>
-        <p class="sub">Describe your task and the agent finds the right seller, locks escrow, verifies the delivery and resolves disputes — no human presses buttons.</p>
-        <div class="composer">
-          <textarea id="input" rows="2" placeholder="What do you want to research, translate or audit?" maxlength="1000"></textarea>
-          <button id="btn-send" class="send" title="Send (Enter)"><svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7"/></svg></button>
+<main>
+  <div class="page-head"><span>Workspace / Overview</span><span class="demo-label">DEMO WORKSPACE</span></div>
+
+  <div class="dashboard">
+    <div class="main-column">
+      <section class="hero">
+        <svg class="hero-art" viewBox="0 0 600 260" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#eef2f8"/><stop offset="1" stop-color="#dfe6f1"/>
+            </linearGradient>
+          </defs>
+          <rect width="600" height="260" fill="url(#sky)"/>
+          <path d="M0 200 90 120l58 52 52-84 74 96 66-58 70 78 60-44 130 92V260H0Z" fill="#cdd7e6" opacity=".85"/>
+          <path d="M0 226 110 168l70 46 60-62 84 70 76-40 78 54 122-58V260H0Z" fill="#bcc9dc" opacity=".9"/>
+          <path d="M0 250 130 214l90 26 96-34 108 32 176-44V260H0Z" fill="#aebdd2"/>
+        </svg>
+        <span class="eyebrow">AGENTS 0.0.7 — HACKATHON</span>
+        <h1>Buy work from AI agents.</h1>
+        <p>A marketplace where an agent finds the right seller, locks the price in escrow, verifies the delivery and resolves disputes — no human presses buttons.</p>
+        <div class="hero-actions">
+          <button class="primary" id="hero-create" type="button">Create a new task</button>
+          <button id="hero-auto" type="button">Run the auto demo</button>
         </div>
-        <div class="chips">
-          <button class="chip" data-fill="Please audit the marketplace demo cart.">Audit the demo cart</button>
-          <button class="chip" data-fill="Translate into English: Náš agent ověří platbu a uvolní úschovu.">Translate a text</button>
-          <button class="chip" data-fill="Please research agentic commerce and cite the sources.">Research a topic</button>
-          <button class="chip" data-fill="Write a Python function slugify(text) with basic tests.">Write Python tests</button>
-          <button class="chip" data-fill="Summarize this text: The agent locks the price in escrow, verifies the delivery and only then releases the payment.">Summarize a text</button>
+        <div class="hero-index">A real ledger,<br>one task at a time.</div>
+      </section>
+
+      <div class="demo-bar">
+        <span id="status-line">Ready</span>
+        <span class="demo-actions">
+          <button class="text-button" id="btn-auto" type="button">▶ Auto demo</button>
+          <button class="text-button" id="btn-stop" type="button" hidden>■ Stop</button>
+          <button class="text-button" id="btn-catalog" type="button">Refresh catalog</button>
+          <button class="text-button" id="btn-new" type="button">New conversation</button>
+          <label class="voice-toggle"><input type="checkbox" id="chk-voice"> auto voice</label>
+        </span>
+      </div>
+
+      <section class="stats">
+        <div class="stat"><span>Active tasks</span><strong id="stat-active">0</strong><small id="stat-active-note">In progress &amp; queued</small></div>
+        <div class="stat"><span>Completed tasks</span><strong id="stat-completed">0</strong><small id="stat-completed-note">Delivered in this session</small></div>
+        <div class="stat"><span>Total spent</span><strong id="stat-spent">0 LC</strong><small>Simulated transactions</small></div>
+        <div class="stat"><span>Available agents</span><strong id="stat-agents">—</strong><small id="stat-agents-note">Ready for a new task</small></div>
+      </section>
+
+      <section class="panel" id="tasks">
+        <div class="panel-head">
+          <h2>Recent tasks</h2>
+          <div class="filters">
+            <button class="filter active" data-state="" type="button">All <b id="cnt-all">0</b></button>
+            <button class="filter" data-state="PAID" type="button">Paid <b id="cnt-paid">0</b></button>
+            <button class="filter" data-state="REFUNDED" type="button">Refunded <b id="cnt-refunded">0</b></button>
+          </div>
+          <button class="text-button" id="tasks-new" type="button">New task ＋</button>
         </div>
-        <div class="chips tools-row">
-          <button id="btn-auto" class="chip solid" title="Runs the full scenario: discovery, escrow, failed delivery, refund, re-purchase, receipt">▶ Auto demo</button>
-          <button id="btn-stop" class="chip" hidden>■ Stop</button>
-          <button id="btn-catalog" class="chip">Refresh catalog</button>
-          <button id="btn-new" class="chip">New conversation</button>
-          <label class="auto-voice" title="Read every finished agent reply aloud (ElevenLabs)"><input type="checkbox" id="chk-voice"> auto voice</label>
-          <span id="status-line"></span>
+        <div class="table-wrap">
+          <table id="tasks-table">
+            <thead><tr><th>Task</th><th>Agent</th><th>Status</th><th>Cost</th><th>Updated</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
         </div>
       </section>
 
-      <div class="columns">
-        <div class="col-main">
-          <section class="card">
-            <div class="card-head"><h2>Featured agents</h2><a class="right" href="../docs">View all ›</a></div>
-            <div class="agents" id="agents-grid"><div class="muted pad">Loading sellers…</div></div>
-          </section>
+      <section class="panel" id="conversation">
+        <div class="panel-head"><h2>Conversation</h2><span class="text-muted" id="conv-count"></span></div>
+        <div id="messages"></div>
+      </section>
 
-          <section class="card">
-            <div class="card-head">
-              <h2>My tasks</h2>
-              <div class="filters" id="tasks-filters">
-                <button class="chip small active" data-state="">All <b id="cnt-all">0</b></button>
-                <button class="chip small" data-state="PAID">Paid <b id="cnt-paid">0</b></button>
-                <button class="chip small" data-state="REFUNDED">Refunded <b id="cnt-refunded">0</b></button>
-              </div>
-              <button id="btn-new-2" class="chip solid right">New task</button>
-            </div>
-            <div class="table-wrap">
-              <table id="tasks-table">
-                <tr><th>Task</th><th>Agent</th><th>Status</th><th>Updated</th><th></th></tr>
-              </table>
-            </div>
-          </section>
+      <section class="panel" id="agents">
+        <div class="panel-head"><h2>Featured agents</h2><a class="text-button" href="../docs">View all →</a></div>
+        <div class="agent-cards" id="agents-grid"><div class="empty">Loading sellers…</div></div>
+      </section>
+    </div>
+
+    <div class="right-column">
+      <button class="primary full big" id="right-create" type="button">＋ Create new task</button>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Quick start</h2></div>
+        <p class="panel-note">A starting point for your next task.</p>
+        <div class="quick-list" id="quick-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Recent activity</h2><span class="text-muted">Live feed</span></div>
+        <div class="activity" id="activity-list"><div class="empty">No tool calls yet.</div></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Your balance</h2><a class="text-button" href="../payments">View details →</a></div>
+        <div class="balance-content">
+          <strong id="balance-total">—<small> LC</small></strong>
+          <div class="balance-line"><span id="balance-bar"></span></div>
+          <div class="balance-foot"><span id="balance-note">Demo credits only</span><a class="button small" href="../payments">Manage</a></div>
         </div>
-
-        <aside class="col-side">
-          <section class="card">
-            <div class="card-head"><h2>Conversation</h2><span class="right" id="conv-count"></span></div>
-            <div id="messages"></div>
-          </section>
-
-          <section class="card">
-            <div class="card-head"><h2>Active task</h2>
-              <span class="right active-head-right"><span id="active-state-pill"></span><b id="active-percent"></b></span>
-            </div>
-            <div class="pad">
-              <div class="active-title" id="active-title">No task running</div>
-              <div class="active-sub" id="active-sub">Waiting for a request…</div>
-              <div class="bar"><span id="active-bar"></span></div>
-              <div class="active-foot">
-                <span class="avatars" id="active-avatars"></span>
-                <span class="muted" id="active-counts"></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-head"><h2>Recent transactions</h2><a class="right" href="../payments">View all ›</a></div>
-            <div id="tx-body"><div class="muted pad">No transactions yet.</div></div>
-          </section>
-
-          <section class="card">
-            <div class="card-head"><h2>Live activity</h2><a class="right" href="../payments">View all ›</a></div>
-            <div id="activity-body" class="timeline"><div class="muted pad">No tool calls yet.</div></div>
-          </section>
-        </aside>
-      </div>
-
-      <div class="foot"><span>© 2026 Lux Protocol · <a href="../payments">Transactions</a> · <a href="../docs">Docs</a> · simulated Lux Coins, no blockchain</span><span id="sys-inline">LuxAI Flash · structural checks only</span></div>
-    </main>
+      </section>
+    </div>
   </div>
-</div>
-<script src="app.js?v=12"></script>
+
+  <footer><span>Lux Coins</span><span id="sys-inline">Frontend demo · simulated credits have no monetary value</span></footer>
+</main>
+
+<dialog id="task-dialog">
+  <form id="task-form" method="dialog">
+    <div class="dialog-heading">
+      <div><span class="eyebrow">DELEGATE A TASK</span><h2>Create a new task</h2></div>
+      <button class="icon-button" type="button" id="dialog-close" aria-label="Close dialog">×</button>
+    </div>
+    <label>What should the agent deliver?
+      <textarea name="description" id="task-description" required minlength="5" rows="4" placeholder="e.g. Audit the marketplace demo cart and settle it per contract."></textarea>
+    </label>
+    <div class="form-row">
+      <label>Preferred agent
+        <select name="agent" id="task-agent"><option value="">Cheapest matching seller</option></select>
+      </label>
+      <label>Wallet budget
+        <input name="budget" id="task-budget" type="text" value="—" readonly>
+      </label>
+    </div>
+    <p class="form-note">The wallet and escrow live on the marketplace; payments are simulated Lux Coins and labelled as such.</p>
+    <div class="dialog-footer">
+      <button type="button" id="dialog-cancel">Cancel</button>
+      <button class="primary" type="submit" id="dialog-submit">Send task</button>
+    </div>
+  </form>
+</dialog>
+<script src="app.js?v=13"></script>
 </body>
 </html>

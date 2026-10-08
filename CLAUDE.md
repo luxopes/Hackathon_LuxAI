@@ -166,6 +166,15 @@ curl -s -X POST http://127.0.0.1:3069/api/chat -H 'Content-Type: application/jso
 # and a CART BUG check line in the paid delivery.
 ```
 
+## Next steps
+
+`ROADMAP.md` at the repository root is the implementation plan: Phase 1 hardening
+(console auth + spend policies, SSE push, signed receipts, ledger export and
+anchoring, observability, CI), Phase 2 real money rails (x402 settlement, AP2
+mandates, session budgets, Stripe), Phase 3 open network (seller onboarding and
+staking, A2A + MCP interop, arbitration jury, Postgres scale-out). Read it before
+starting new work; keep the invariants in section 2 of that file intact.
+
 ## Conventions
 
 * `main` is owner-only; contribute via a branch (fork if you lack write access)

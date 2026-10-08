@@ -36,6 +36,8 @@ scripts/    local run/config helpers
 
 ## Docs
 
+* **`ROADMAP.md`** — the implementation plan: hardening, real payment rails
+  (x402/AP2/Stripe), seller network, arbitration and scale.
 * **`backend/docs/SETUP.md`** — run everything locally from zero (incl. LSL
   install and troubleshooting).
 * **`backend/docs/API.md`** — how to connect a frontend: endpoints, state

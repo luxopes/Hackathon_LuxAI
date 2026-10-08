@@ -109,29 +109,26 @@ currently in the older "protocol explorer" styling):
   session notes; 114 links were green before the redesign).
 * Verified in Firefox at 1366×768, 1900×1100 and 820×1300 (fold states).
 
-## 2. Port the speech sidecar from Python to LSL
+## 2. Speech sidecar — done in LSL
 
-`backend/python/tts.py` (ElevenLabs TTS + Scribe transcription, mp3 cache) is
-the only service added in Python; the console, agent, sellers and accounts are
-already LSL. Port it to `backend/lsl/speech.lsl` so the whole agentic stack is
-LSL, and keep the Python service as a fallback until the LSL version passes the
-same tests.
+`backend/lsl/speech.lsl` replaces `backend/python/tts.py`, which stays in the
+repository only as a fallback. Ported behaviour, verified end to end:
 
-Notes for the port:
-
-* LSL can shell out with `process.check(executable, arguments)` /
-  `process.check_input(...)`; run `curl --output <file>` for binary bodies and
-  read them back with `readbytes` (the text-oriented `http` stdlib cannot carry
-  mp3 bytes).
-* Serve the audio through `httpserver` with a `ByteArray` body; keep the disk
-  cache keyed by the SHA-256 of the spoken text (see the Python version).
-* Transcription: write the request body to a temp file (`writebytes`), forward
-  it with `curl -F file=@…`, parse the JSON answer.
-* Keep the same public surface: `POST /api/speak` (message index or `job_id`)
-  and `POST /api/transcribe`, routed by Caddy to the sidecar.
-* Acceptance: the same round-trip checks that passed on 2026-10-08 — read a
-  delivery aloud, transcribe a generated mp3 back to text, cached second call
-  served without an API request, tampered/unknown ids rejected.
+- `/api/speak` with `{index}` or `{job_id}`: the sidecar fetches the console
+  state (forwarding the caller's token) or the receipt, strips code fences and
+  links, and asks ElevenLabs for an mp3 written straight into
+  `/srv/www/proofpay-tts` by curl (`-o`), so no binary passes through LSL.
+- `/api/transcribe` with `{audio_base64}`: openssl decodes the recording,
+  curl posts it to Scribe as multipart, the transcript comes back as JSON.
+- The cache key is the same `sha256(voice|model|text)`, so the 37 mp3 files the
+  Python version had already produced are reused; Caddy serves `/web/tts/*`
+  from that directory.
+- The API key never appears in process arguments: curl reads it from a config
+  file in a private work directory.
+- Verified: an audit and a research delivery both synthesise (`cached: true` on
+  the second call), the mp3 downloads over the public host as `audio/mpeg`, and
+  a transcription round-trip of the generated audio returned the exact spoken
+  text ("Cart audit. Two of three checks passed. …").
 
 ## 3. Smaller leftovers
 

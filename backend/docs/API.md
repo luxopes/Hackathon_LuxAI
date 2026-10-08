@@ -133,16 +133,35 @@ purchase step; a funded job is always settled or refunded first. Returns
 `{"ok": true}`.
 
 ### `POST /api/speak`
-Read one stored agent message aloud (ElevenLabs). The request carries only an
-index, never free text, so the endpoint cannot be abused as a TTS proxy; the
-API key stays on the server and identical texts are served from a disk cache.
+Read one stored agent message (or a purchased delivery) aloud. ElevenLabs runs
+behind the **LSL speech sidecar** (`backend/lsl/speech.lsl`); the request
+carries only an index or a job id, never free text, so the endpoint cannot be
+abused as a TTS proxy. The API key stays on the server (curl receives it in a
+config file, never in arguments) and identical texts are served from the shared
+mp3 cache under `/srv/www/proofpay-tts`, which Caddy serves directly so no
+binary ever passes through LSL strings.
 
 ```json
 { "index": 4 }
+{ "job_id": "job-…" }
 ```
-* `200` → `audio/mpeg` body (mp3).
+* `200` → `{"ok": true, "url": "/web/tts/<sha256>.mp3", "cached": false, "chars": 171}`
 * `400` → `{"error": "index must point at an agent message"}`.
-* `502` → the ElevenLabs API failed (the message carries the reason).
+* `502` → ElevenLabs failed (the message carries the reason).
+
+### `POST /api/transcribe`
+Dictate a task with ElevenLabs Scribe. The body carries the recording as
+base64; the sidecar decodes it with `openssl base64`, uploads it with curl and
+returns the transcript.
+
+```json
+{ "audio_base64": "GkXfo…" }
+```
+* `200` → `{"text": "audit the demo cart"}`.
+* `413` → the recording is empty or larger than 8 MB.
+
+### `GET /health`
+`{"ok": true, "configured": true, "model": "eleven_v4", "cached": 37, "runtime": "LSL"}`.
 * `503` → `{"error": "Text-to-speech is not configured on this server."}`.
 
 The reference frontend shows a 🔊 button on agent messages; when the browser

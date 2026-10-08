@@ -2,24 +2,33 @@
 # The console frontend is served from the same origin as its API, so the
 # browser never needs CORS and the client token never leaves the server.
 
-api.example.com {
-	# Marketplace API + public overview dashboard.
-	redir /hackathon01 /hackathon01/ 308
-	handle_path /hackathon01/* {
-		reverse_proxy 127.0.0.1:3070
+hackathon.example.com {
+	# Everything on the hackathon host: the console under /web/, the
+	# marketplace (pages, api, receipts, ledger, keys) at the root.
+	redir / /web/ 308
+
+	# Generated mp3 files are served straight from disk: no binary ever passes
+	# through LSL strings, and Caddy can cache or throttle them on its own.
+	handle_path /web/tts/* {
+		root * /srv/www/proofpay-tts
+		file_server
 	}
 
-	# Agent console API + static frontend.
-	# The speech sidecar must be matched before the console route.
-	redir /hackathon01/web /hackathon01/web/ 308
-	handle_path /hackathon01/web/api/speak {
+	# The speech sidecar (LSL) must be matched before the console route.
+	handle /web/api/speak* {
+		reverse_proxy 127.0.0.1:3071
+	}
+	handle /web/api/transcribe* {
 		reverse_proxy 127.0.0.1:3071
 	}
 	# header_up -Via: the LSL HTTP server rejects duplicated Via headers that
 	# a proxy chain may add, so strip them for this route.
-	handle_path /hackathon01/web/* {
+	handle_path /web/* {
 		reverse_proxy 127.0.0.1:3069 {
 			header_up -Via
 		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3070
 	}
 }

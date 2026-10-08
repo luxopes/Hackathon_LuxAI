@@ -98,11 +98,10 @@ async function speakMessage(index) {
       showNotice("🔊 " + (err.error || "Text-to-speech failed") + " (HTTP " + resp.status + ")");
       return;
     }
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    audioPlayer = new Audio(url);
-    audioPlayer.addEventListener("ended", () => { URL.revokeObjectURL(url); stopSpeech(); });
-    audioPlayer.addEventListener("error", () => { URL.revokeObjectURL(url); stopSpeech(); });
+    const source = await audioSource(resp);
+    audioPlayer = new Audio(source.url);
+    audioPlayer.addEventListener("ended", () => { if (source.revoke) URL.revokeObjectURL(source.url); stopSpeech(); });
+    audioPlayer.addEventListener("error", () => { if (source.revoke) URL.revokeObjectURL(source.url); stopSpeech(); });
     try { await audioPlayer.play(); speakPhase = "playing"; }
     catch (error) {
       if (error && error.name === "NotAllowedError") { speakPhase = "ready"; showNotice("🔊 Browser blocked autoplay — click ▶ to play."); }
@@ -507,6 +506,18 @@ function renderSystem(st) {
   $("sys-inline").textContent = "LuxAI 2026";
 }
 
+/* Sidecar vrací URL do MP3 cache (tu servíruje Caddy); starší cesta vracela
+   rovnou audio v těle odpovědi, takže umíme obojí. */
+async function audioSource(resp) {
+  const type = resp.headers.get("Content-Type") || "";
+  if (type.indexOf("application/json") >= 0) {
+    const data = await resp.json().catch(() => ({}));
+    if (data && data.url) return { url: data.url, revoke: false };
+    throw new Error(data.error || "no audio returned");
+  }
+  return { url: URL.createObjectURL(await resp.blob()), revoke: true };
+}
+
 /* ---------- speech helpers for deliveries ---------- */
 let deliveryAudio = null;
 let deliveryJob = "";
@@ -545,10 +556,10 @@ async function speakDelivery() {
       showNotice("🔊 " + (err.error || "Text-to-speech failed") + " (HTTP " + resp.status + ")");
       return;
     }
-    const url = URL.createObjectURL(await resp.blob());
-    deliveryAudio = new Audio(url);
-    deliveryAudio.addEventListener("ended", () => { URL.revokeObjectURL(url); stopDeliveryAudio(); });
-    deliveryAudio.addEventListener("error", () => { URL.revokeObjectURL(url); stopDeliveryAudio(); });
+    const source = await audioSource(resp);
+    deliveryAudio = new Audio(source.url);
+    deliveryAudio.addEventListener("ended", () => { if (source.revoke) URL.revokeObjectURL(source.url); stopDeliveryAudio(); });
+    deliveryAudio.addEventListener("error", () => { if (source.revoke) URL.revokeObjectURL(source.url); stopDeliveryAudio(); });
     try { await deliveryAudio.play(); deliverySpeakState = "playing"; }
     catch (error) {
       if (error && error.name === "NotAllowedError") { deliverySpeakState = "ready"; showNotice("🔊 Browser blocked autoplay — click ▶ Play."); }
@@ -594,10 +605,14 @@ async function toggleRecording() {
     status.textContent = "Transcribing with ElevenLabs Scribe…";
     try {
       const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
-      const form = new FormData();
-      form.append("file", blob, "task.webm");
-      form.append("model_id", "scribe_v2");
-      const resp = await apiFetch("api/transcribe", { method: "POST", body: form });
+      const encoded = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("audio could not be read"));
+        reader.readAsDataURL(blob);
+      });
+      const resp = await apiFetch("api/transcribe", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio_base64: encoded }) });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         status.textContent = (data.error || "Transcription failed") + " (HTTP " + resp.status + ")";

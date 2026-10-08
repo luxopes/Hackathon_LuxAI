@@ -108,9 +108,9 @@ function artifact_text(report, code="cs"):
             text += newline + mark + " · " + check["case_id"] + " · " + expected_word + String(check["expected_cents"]) + got_word + String(check["observed_cents"])
         end
         if findings > 0:
-            text += newline + newline + "Audit result: " + String(findings) + " of " + String(len(cases)) + " contracted checks found a defect in the cart. The audit delivered the missing evidence and is paid; the shop should fix its cart."
+            text += newline + newline + "Audit complete: " + String(findings) + " of " + String(len(cases)) + " checks found a defect in the demo cart. The delivery is verified against execution receipts and paid."
         else:
-            text += newline + newline + "Audit result: all " + String(len(cases)) + " contracted checks passed; the cart behaves correctly."
+            text += newline + newline + "Audit complete: all " + String(len(cases)) + " contracted checks passed."
         end
     end
     return text

@@ -226,7 +226,7 @@ function credit_card_topup(who, session_id, outcome):
     call users_save()
     call lock()
     try:
-        call add_notification("info", "Card payment confirmed (Stripe test): +" + usd(outcome["lux_coins"]), "")
+        call add_notification("info", "Card payment confirmed (Stripe test): +" + usd(outcome["lux_coins"]), "", who)
     else:
         call time.time()
     end
@@ -1044,7 +1044,7 @@ function route(client, request):
                 end
             end
             call lock()
-            call add_notification("info", "Account topped up: +" + usd(amount) + " (budget " + usd(new_budget) + ")", "")
+            call add_notification("info", "Account topped up: +" + usd(amount) + " (budget " + usd(new_budget) + ")", "", who)
             call unlock()
             call send_json(client, 200, {"user": user_public(user_find(who)), "wallet": wallet})
             return

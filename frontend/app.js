@@ -861,11 +861,17 @@ function autoTick(st) {
 }
 
 /* ---------- notifications (bell) ---------- */
-function seenNotification() { return localStorage.getItem("notificationsSeen") || ""; }
+function seenNotification() {
+  const user = account && account.username ? account.username : "guest";
+  return localStorage.getItem("notificationsSeen:" + user) || "";
+}
 
 function unreadCount(notifications) {
   const seen = seenNotification();
-  const seenNumber = seen ? parseInt(seen.replace("n-", ""), 10) || 0 : 0;
+  let seenNumber = seen ? parseInt(seen.replace("n-", ""), 10) || 0 : 0;
+  // Po restartu služby číslování začíná znovu; starší značku ignorujeme.
+  const highest = notifications.reduce((max, item) => Math.max(max, parseInt((item.id || "").replace("n-", ""), 10) || 0), 0);
+  if (seenNumber > highest) seenNumber = 0;
   return notifications.filter((item) => (parseInt((item.id || "").replace("n-", ""), 10) || 0) > seenNumber).length;
 }
 
@@ -900,7 +906,8 @@ function renderNotifications(st) {
 
 function markNotificationsSeen() {
   const notifications = (fullState && fullState.notifications) || [];
-  if (notifications.length) localStorage.setItem("notificationsSeen", notifications[notifications.length - 1].id);
+  const user = account && account.username ? account.username : "guest";
+  if (notifications.length) localStorage.setItem("notificationsSeen:" + user, notifications[notifications.length - 1].id);
   renderNotifications(fullState || {});
 }
 
@@ -1342,6 +1349,7 @@ async function poll() {
         renderWallet(full);
         renderStats(full);
         renderSystem(full);
+        renderNotifications(full);
         if (full.messages_revision !== lastMessagesRev) { lastMessagesRev = full.messages_revision; renderChat(full.messages); }
         if (full.notifications_revision !== lastNotificationsRev) {
           lastNotificationsRev = full.notifications_revision;
@@ -1435,11 +1443,16 @@ document.querySelectorAll(".filter").forEach((chip) => {
 $("side-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
 $("top-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
 $("top-agents").addEventListener("click", (event) => { event.preventDefault(); $("agents").scrollIntoView({ behavior: "smooth" }); });
-$("bell").addEventListener("click", (event) => {
+$("bell").addEventListener("click", async (event) => {
   event.stopPropagation();
   const menu = $("bell-menu");
   menu.hidden = !menu.hidden;
-  if (!menu.hidden) markNotificationsSeen();
+  if (menu.hidden) return;
+  try {
+    const fresh = await (await apiFetch("api/state?t=" + Date.now())).json();
+    if (fresh && fresh.ok === true) { fullState = fresh; renderNotifications(fresh); }
+  } catch { /* zůstane poslední známý stav */ }
+  markNotificationsSeen();
 });
 $("bell-activity").addEventListener("click", () => {
   $("bell-menu").hidden = true;

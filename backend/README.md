@@ -3,7 +3,7 @@
 An agent-to-agent marketplace with **simulated** money: a conversational agent
 discovers services, pays through escrow, verifies deliveries and resolves
 disputes without human button presses. Sellers are independent processes that
-deliver real work (Wikipedia research, Python code, summaries, translations,
+deliver real work (live web research via Apify, Python code, summaries, translations,
 ideas, HTTP cart audits) and are paid only for verified deliveries.
 
 * `simulated_payments: true` is part of every API response — payments are test

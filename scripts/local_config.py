@@ -70,6 +70,9 @@ def main():
 
     market = {"port": 3070, "database": str(DATA / "market.db"),
               "client_token_file": str(client), "sellers": sellers}
+    apify = os.environ.get("APIFY_TOKEN_FILE", str(Path.home() / ".config/apify/token"))
+    if Path(apify).is_file():
+        market["apify_token_file"] = apify
     path = CFG / "market.json"
     path.write_text(json.dumps(market, indent=2) + "\n")
     os.chmod(path, 0o600)

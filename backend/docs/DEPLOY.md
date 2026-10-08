@@ -55,6 +55,9 @@ done
 chmod 640 /etc/proofpay-mvp/*.token && chown root:proofpay /etc/proofpay-mvp/*.token
 
 install -m 640 -o root -g proofpay luxai.key /etc/proofpay-mvp/luxai.key
+# optional: Apify token for live-web research (falls back to Wikipedia without it)
+printf '%s' 'apify_api_…' > /etc/proofpay-mvp/apify.token
+chmod 640 /etc/proofpay-mvp/apify.token && chown root:proofpay /etc/proofpay-mvp/apify.token
 cp deploy/market.json.example /etc/proofpay-mvp/market.json   # edit paths
 cp deploy/chat.env.example  /etc/proofpay-mvp/chat.env        # edit paths
 for s in partial complete scout insight atlas; do

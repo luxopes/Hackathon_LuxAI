@@ -37,6 +37,8 @@ class Market:
         self.changed = threading.Condition(self.lock)
         self.previews = {}
         self.client_token = Path(config["client_token_file"]).read_text().strip()
+        apify_file = config.get("apify_token_file", "")
+        self.apify_token = Path(apify_file).read_text().strip() if apify_file and Path(apify_file).is_file() else ""
         self.sellers = {s["id"]: {**s, "token": Path(s["token_file"]).read_text().strip()} for s in config["sellers"]}
         if len(self.client_token) < 32 or any(len(s["token"]) < 32 for s in self.sellers.values()):
             raise ValueError("Tokens must have at least 32 characters")
@@ -416,7 +418,59 @@ class Market:
             existing = [dict(row) for row in db.execute("SELECT url,title,extract FROM research_sources WHERE job_id=?", (job["id"],))]
             if existing:
                 return {"sources": existing, "scope": "Wikipedia article introductions"}
-        # Pevný původ brání tomu, aby zadání vedlo k požadavkům na interní adresy.
+        sources = self.apify_research(query)
+        scope = "Live web pages fetched with the Apify RAG Web Browser (query is data, not a URL)"
+        if len(sources) < 2:
+            # Záložní cesta udrží demo funkční i bez Apify kvóty nebo při výpadku.
+            sources = self.wikipedia_research(query)
+            scope = "Wikipedia article introductions (Apify fallback)"
+        if len(sources) < 2:
+            raise Problem(422, "research needs at least two matching sources; use a broader topic")
+        with self.transaction() as db:
+            self.provider_job(db, job["id"], token)
+            for source in sources:
+                db.execute("INSERT OR IGNORE INTO research_sources VALUES(?,?,?,?)",
+                           (job["id"], source["url"], source["title"], source["extract"]))
+        return {"sources": sources, "scope": scope}
+
+    def apify_research(self, query):
+        # Živé výsledky z webu přes Apify RAG Web Browser (vyhledá a stáhne obsah
+        # stránek). Při chybě vrací prázdný seznam; volající použije záložní cestu.
+        if not self.apify_token:
+            return []
+        params = urlencode({"maxTotalChargeUsd": "0.50"})
+        request = Request("https://api.apify.com/v2/acts/apify~rag-web-browser/run-sync-get-dataset-items?" + params,
+                          data=encoded({"query": query, "maxResults": 3}).encode(),
+                          headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.apify_token})
+        try:
+            with urlopen(request, timeout=60) as response:
+                raw = response.read(2000001)
+                if len(raw) > 2000000:
+                    raise ValueError("source response too large")
+                items = json.loads(raw)
+        except (URLError, OSError, ValueError):
+            return []
+        if type(items) is not list:
+            return []
+        sources = []
+        seen = set()
+        for item in items:
+            if type(item) is not dict:
+                continue
+            metadata = item.get("metadata") or {}
+            url = metadata.get("url") or metadata.get("canonicalUrl") or item.get("url")
+            title = metadata.get("title") or (item.get("searchResult") or {}).get("title") or ""
+            extract = item.get("markdown") or item.get("text") or ""
+            if type(url) is not str or not url.startswith("https://") or type(title) is not str or not title.strip() or type(extract) is not str or not extract.strip():
+                continue
+            if url in seen:
+                continue
+            seen.add(url)
+            sources.append({"title": title.strip()[:300], "url": url, "extract": extract.strip()[:1800]})
+        return sources[:3]
+
+    def wikipedia_research(self, query):
+        # Pevný původ dotazu brání tomu, aby zadání vedlo k požadavkům na interní adresy.
         params = urlencode({"action": "query", "generator": "search", "gsrsearch": query,
                             "gsrlimit": 3, "prop": "extracts", "exintro": 1, "explaintext": 1,
                             "exchars": 900, "format": "json"})
@@ -428,18 +482,10 @@ class Market:
                     raise ValueError("source response too large")
                 data = json.loads(raw)
         except (URLError, OSError, ValueError):
-            raise Problem(502, "research sources unavailable")
-        sources = [{"title": page["title"], "url": "https://en.wikipedia.org/wiki/" + quote(page["title"].replace(" ", "_")),
-                    "extract": page.get("extract", "")[:1800]}
-                   for page in data.get("query", {}).get("pages", {}).values() if page.get("extract")]
-        if len(sources) < 2:
-            raise Problem(422, "research needs at least two matching sources; use a broader topic")
-        with self.transaction() as db:
-            self.provider_job(db, job["id"], token)
-            for source in sources:
-                db.execute("INSERT OR IGNORE INTO research_sources VALUES(?,?,?,?)",
-                           (job["id"], source["url"], source["title"], source["extract"]))
-        return {"sources": sources, "scope": "Wikipedia article introductions"}
+            return []
+        return [{"title": page["title"], "url": "https://en.wikipedia.org/wiki/" + quote(page["title"].replace(" ", "_")),
+                 "extract": page.get("extract", "")[:1800]}
+                for page in data.get("query", {}).get("pages", {}).values() if page.get("extract")]
 
     def finish(self, job_id, refund):
         with self.transaction() as db:

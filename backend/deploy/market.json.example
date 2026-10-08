@@ -33,7 +33,7 @@
           "capability": "short-research",
           "price": 3,
           "tier": "compact",
-          "delivery": "Short research with two sources fetched from Wikipedia"
+          "delivery": "Short research with live web sources fetched via Apify"
         },
         {
           "id": "offer-scout-python-code",
@@ -81,7 +81,7 @@
           "capability": "short-research",
           "price": 6,
           "tier": "balanced",
-          "delivery": "Short research with two sources fetched from Wikipedia"
+          "delivery": "Short research with live web sources fetched via Apify"
         },
         {
           "id": "offer-insight-python-code",
@@ -129,7 +129,7 @@
           "capability": "short-research",
           "price": 9,
           "tier": "detailed",
-          "delivery": "Short research with two sources fetched from Wikipedia"
+          "delivery": "Short research with live web sources fetched via Apify"
         },
         {
           "id": "offer-atlas-python-code",
@@ -173,5 +173,6 @@
         }
       ]
     }
-  ]
+  ],
+  "apify_token_file": "/etc/proofpay-mvp/apify.token"
 }

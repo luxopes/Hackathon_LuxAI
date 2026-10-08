@@ -4,7 +4,7 @@ import ast
 CURRENCY = "Lux Coins"
 SERVICES = {
     "http-cart-audit": {"name": "Cart audit", "delivery": "Three HTTP cart checks with execution receipts"},
-    "short-research": {"name": "Short research", "delivery": "Short research with two sources fetched from Wikipedia"},
+    "short-research": {"name": "Short research", "delivery": "Short research with live web sources fetched via Apify"},
     "python-code": {"name": "Python code", "delivery": "Python code and basic tests with syntax validation"},
     "text-summary": {"name": "Text summary", "delivery": "Concise summary of the submitted text"},
     "translation": {"name": "Translation", "delivery": "Translation of the submitted text as requested"},

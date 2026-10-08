@@ -333,7 +333,7 @@ function run(config, on_event=None, cancel=None):
     end
     final_session = traced_api(config, events, on_event, "read_wallet", "GET", "/api/sessions/" + session_id)
     artifact_file = save_artifact(config, paid_job)
-    report = {"success": paid_job != None, "cancelled": stopped, "runtime": "LSL", "model": "LuxAI Flash", "payments": "SIMULATED LUX COINS", "currency": currency, "session": final_session, "events": events, "paid_job": paid_job, "payment_receipts": payments, "artifact_file": artifact_file, "limitations": ["Research uses Wikipedia introductions", "Generated code is syntax-checked, not executed", "Text deliveries are structurally checked with seller attestation", "Contract-based refunds on a trusted central marketplace", "No blockchain integration in this MVP"]}
+    report = {"success": paid_job != None, "cancelled": stopped, "runtime": "LSL", "model": "LuxAI Flash", "payments": "SIMULATED LUX COINS", "currency": currency, "session": final_session, "events": events, "paid_job": paid_job, "payment_receipts": payments, "artifact_file": artifact_file, "limitations": ["Research uses live web pages fetched via Apify", "Generated code is syntax-checked, not executed", "Text deliveries are structurally checked with seller attestation", "Contract-based refunds on a trusted central marketplace", "No blockchain integration in this MVP"]}
     action = "STOPPED"
     checks = []
     if paid_job != None:

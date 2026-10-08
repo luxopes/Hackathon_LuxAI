@@ -444,6 +444,116 @@ function renderSystem(st) {
   $("sys-inline").textContent = `LuxAI Flash · ${st.currency} (${st.simulated_payments ? "simulated" : "?"}) · ${st.tool_count || 0} tool calls · ${st.payment_count || 0} receipts · structural checks only`;
 }
 
+/* ---------- speech helpers for deliveries ---------- */
+let deliveryAudio = null;
+let deliveryJob = "";
+let deliverySpeakState = "idle";
+
+function refreshDeliverySpeak() {
+  const button = $("delivery-speak");
+  if (!button) return;
+  button.textContent = deliverySpeakState === "loading" ? "🔊 preparing…"
+    : deliverySpeakState === "playing" ? "⏹ Stop" : deliverySpeakState === "ready" ? "▶ Play" : "🔊 Read aloud";
+  button.disabled = deliverySpeakState === "loading";
+}
+
+function stopDeliveryAudio() {
+  if (deliveryAudio) { deliveryAudio.pause(); deliveryAudio = null; }
+  deliverySpeakState = "idle";
+  refreshDeliverySpeak();
+}
+
+async function speakDelivery() {
+  if (!deliveryJob) return;
+  if (deliverySpeakState === "playing") { stopDeliveryAudio(); return; }
+  if (deliverySpeakState === "ready" && deliveryAudio) {
+    try { await deliveryAudio.play(); deliverySpeakState = "playing"; refreshDeliverySpeak(); } catch { /* zustava ready */ }
+    return;
+  }
+  stopDeliveryAudio();
+  deliverySpeakState = "loading";
+  refreshDeliverySpeak();
+  try {
+    const resp = await fetch("api/speak", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: deliveryJob }) });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      stopDeliveryAudio();
+      showNotice("🔊 " + (err.error || "Text-to-speech failed") + " (HTTP " + resp.status + ")");
+      return;
+    }
+    const url = URL.createObjectURL(await resp.blob());
+    deliveryAudio = new Audio(url);
+    deliveryAudio.addEventListener("ended", () => { URL.revokeObjectURL(url); stopDeliveryAudio(); });
+    deliveryAudio.addEventListener("error", () => { URL.revokeObjectURL(url); stopDeliveryAudio(); });
+    try { await deliveryAudio.play(); deliverySpeakState = "playing"; }
+    catch (error) {
+      if (error && error.name === "NotAllowedError") { deliverySpeakState = "ready"; showNotice("🔊 Browser blocked autoplay — click ▶ Play."); }
+      else throw error;
+    }
+    refreshDeliverySpeak();
+  } catch {
+    stopDeliveryAudio();
+    showNotice("🔊 Text-to-speech failed");
+  }
+}
+
+/* ---------- voice input (ElevenLabs Scribe) ---------- */
+let recorder = null;
+let recordedChunks = [];
+
+async function toggleRecording() {
+  const button = $("task-mic");
+  const status = $("mic-status");
+  if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status.textContent = "This browser cannot record audio.";
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    status.textContent = "Microphone permission denied.";
+    return;
+  }
+  recordedChunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.addEventListener("dataavailable", (event) => { if (event.data && event.data.size) recordedChunks.push(event.data); });
+  recorder.addEventListener("stop", async () => {
+    stream.getTracks().forEach((track) => track.stop());
+    button.classList.remove("recording");
+    button.disabled = true;
+    button.textContent = "🎤 Transcribing…";
+    status.textContent = "Transcribing with ElevenLabs Scribe…";
+    try {
+      const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
+      const form = new FormData();
+      form.append("file", blob, "task.webm");
+      form.append("model_id", "scribe_v2");
+      const resp = await fetch("api/transcribe", { method: "POST", body: form });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        status.textContent = (data.error || "Transcription failed") + " (HTTP " + resp.status + ")";
+      } else if (!data.text) {
+        status.textContent = "Nothing intelligible was recognised — try again.";
+      } else {
+        const field = $("task-description");
+        field.value = (field.value ? field.value.trim() + " " : "") + data.text;
+        status.textContent = "Dictated: “" + data.text.slice(0, 90) + (data.text.length > 90 ? "…" : "") + "”";
+      }
+    } catch (error) {
+      status.textContent = "Transcription failed: " + error.message;
+    }
+    button.disabled = false;
+    button.textContent = "🎤 Dictate";
+  });
+  recorder.start();
+  button.classList.add("recording");
+  button.textContent = "⏹ Stop dictation";
+  status.textContent = "Recording… speak your task, then stop.";
+}
+
 /* ---------- purchased delivery dialog ---------- */
 function metaRow(label, value) {
   const span = document.createElement("span");
@@ -571,6 +681,8 @@ function renderDelivery(data) {
 
 async function openDelivery(jobId) {
   const dialog = $("delivery-dialog");
+  deliveryJob = jobId;
+  stopDeliveryAudio();
   $("delivery-title").textContent = "Loading delivery…";
   $("delivery-receipt").href = "../receipt/" + jobId;
   $("delivery-body").innerHTML = '<p class="text-muted">Fetching the delivery from the public receipt…</p>';
@@ -747,8 +859,10 @@ $("btn-auto").addEventListener("click", startAutoDemo);
 $("btn-stop").addEventListener("click", stopTurn);
 $("btn-catalog").addEventListener("click", refreshCatalog);
 $("btn-new").addEventListener("click", newConversation);
-$("delivery-close").addEventListener("click", () => $("delivery-dialog").close());
-$("delivery-done").addEventListener("click", () => $("delivery-dialog").close());
+$("delivery-speak").addEventListener("click", speakDelivery);
+$("task-mic").addEventListener("click", toggleRecording);
+$("delivery-close").addEventListener("click", () => { stopDeliveryAudio(); $("delivery-dialog").close(); });
+$("delivery-done").addEventListener("click", () => { stopDeliveryAudio(); $("delivery-dialog").close(); });
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });

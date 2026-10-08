@@ -55,7 +55,7 @@ a.button:hover{background:#f3f5f8;border-color:#ccd3dd}
 main{margin:78px 0 0 224px;padding:24px 28px 10px;max-width:1900px}
 .page-head{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-bottom:22px}
 .demo-label{font-size:10px;letter-spacing:1.2px;border:1px solid var(--line);padding:2px 7px;border-radius:3px}
-.dashboard{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:22px}
+.dashboard{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:22px;max-width:1700px}
 .main-column,.right-column{display:flex;flex-direction:column;gap:20px}
 /* ---------- hero ---------- */
 .hero{border:1px solid #e1e5ec;background:linear-gradient(115deg,#f0f3f8,#e5eaf2);border-radius:8px;min-height:254px;padding:30px 34px;position:relative;overflow:hidden}
@@ -78,7 +78,7 @@ h3{font-size:16px;letter-spacing:-.3px;margin:0}
 .voice-toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
 .voice-toggle input{accent-color:var(--ink)}
 /* ---------- stats ---------- */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:7px;background:white}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));border:1px solid var(--line);border-radius:7px;background:white}
 .stat{padding:18px 20px;border-right:1px solid var(--line)}
 .stat:last-child{border:0}
 .stat span{font-size:12px;color:var(--muted)}
@@ -117,7 +117,7 @@ tbody tr:hover{background:#fafbfc}
 .avatars .avatar:nth-child(2){background:#3e495b}
 .avatars .avatar:nth-child(3){background:#17202b}
 /* ---------- featured agents ---------- */
-.agent-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:0 16px 16px}
+.agent-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(198px,1fr));gap:12px;padding:0 16px 16px}
 .agent-card{border:1px solid var(--line);border-radius:6px;padding:15px;background:#fcfcfd;display:flex;flex-direction:column}
 .agent-card-head{display:flex;align-items:center;gap:10px}
 .agent-card b{font-size:12px}
@@ -216,5 +216,40 @@ form input,form textarea,form select{width:100%;border:1px solid #dbe1e8;border-
 .checks-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
 .checks-table th{background:#fafbfc;font-size:10px;padding:8px 10px}
 .checks-table td{padding:9px 10px;white-space:nowrap}
+.voice-row{display:flex;align-items:center;gap:12px;margin:-6px 0 14px;flex-wrap:wrap}
+button.mic{background:#fff;border:1px solid var(--line);font-size:13px;padding:9px 14px}
+button.mic.recording{background:#fcebed;border-color:#f0b1b9;color:#bf384d;animation:pulse 1.4s infinite}
+button.mic:disabled{opacity:.6}
+@keyframes pulse{50%{opacity:.55}}
+/* velmi široké a nízké obrazovky (fold v rozloženém stavu, tablety na šířku) */
+@media (min-width:1700px){.dashboard{grid-template-columns:minmax(0,1fr) 340px}.hero{min-height:230px}}
+@media (max-height:840px){.hero{min-height:200px;padding:24px 28px}#messages{max-height:300px}.sidebar nav a,.nav-item{padding:10px 12px}}
 @media (max-width:1200px){.dashboard{grid-template-columns:1fr}.agent-cards{grid-template-columns:repeat(2,1fr)}}
-@media (max-width:900px){.sidebar{position:static;width:auto}.topbar{position:static;inset:auto;margin-left:0}main{margin:0}.stats{grid-template-columns:repeat(2,1fr)}.agent-cards{grid-template-columns:1fr}}
+/* úzký režim (přeložený fold, telefon): sidebar se změní na horní lištu */
+@media (max-width:900px){
+  .sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px 14px}
+  .brand{height:auto;padding:2px 6px 10px}
+  .nav-label{display:none}
+  .sidebar nav{flex-direction:row;overflow-x:auto;gap:4px;padding:0}
+  .nav-item{white-space:nowrap;margin:0 0 0 0;padding:10px 12px}
+  .nav-item.active:before{display:none}
+  .sidebar-bottom{display:flex;align-items:center;gap:12px;margin-top:12px;padding:0 6px}
+  .credit-box{border:0;padding:0;flex:1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .credit-box strong{margin:0;font-size:18px}
+  .credit-box .button{width:auto;padding:7px 12px;font-size:12px}
+  .signature{display:none}
+  main{margin:0;padding:16px 14px 8px}
+  .topbar{position:static;inset:auto;margin-left:0;height:auto;flex-wrap:wrap;padding:10px 14px;gap:12px}
+  .topbar nav{height:auto;overflow-x:auto;gap:16px}
+  .search{width:100%;order:3}
+  .search input{width:100%}
+  .profile{margin-left:auto}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .agent-cards{grid-template-columns:1fr}
+  .dashboard{grid-template-columns:1fr}
+  .hero{padding:22px 18px;min-height:0}
+  h1{font-size:30px}
+  .hero-index{position:static;margin-top:12px;text-align:left}
+  .panel-head{flex-wrap:wrap}
+  .filters{margin-left:0;order:3}
+}

@@ -37,6 +37,9 @@ MAX_CHARS = int(os.environ.get("TTS_MAX_CHARS", "2000"))
 API = "https://api.elevenlabs.io/v1/text-to-speech/"
 MAX_AUDIO_BYTES = 8_000_000
 COOLDOWN_SECONDS = 2.0
+RECEIPT_URL = os.environ.get("TTS_RECEIPT_URL", "http://127.0.0.1:3070/api/receipt/")
+STT_ENDPOINT = "https://api.elevenlabs.io/v1/speech-to-text"
+MAX_UPLOAD_BYTES = 8_000_000
 
 KEY = KEY_FILE.read_text().strip() if KEY_FILE.is_file() else ""
 CACHE.mkdir(parents=True, exist_ok=True)
@@ -68,6 +71,34 @@ def console_message(index):
     if message.get("role") != "Agent":
         return None
     return message.get("content") or ""
+
+
+def job_text(job_id):
+    """Text zakoupené dodávky (shrnutí + obsah + nápady) pro předčítání."""
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", job_id or ""):
+        return None
+    request = Request(RECEIPT_URL + job_id, headers={"Accept": "application/json"})
+    with urlopen(request, timeout=20) as response:
+        receipt = json.loads(response.read(2_000_001))
+    artifact = (receipt.get("job", {}).get("result") or {}).get("artifact") or {}
+    parts = []
+    if artifact.get("summary"):
+        parts.append(str(artifact["summary"]))
+    if artifact.get("content"):
+        parts.append(str(artifact["content"]))
+    ideas = artifact.get("ideas") or []
+    if ideas:
+        parts.append(" ".join(f"{index + 1}. {idea}" for index, idea in enumerate(ideas) if isinstance(idea, str)))
+    return "\n\n".join(parts)
+
+
+def transcribe_raw(body, content_type):
+    """Přepis nahrávky přes ElevenLabs Scribe; multipart se posílá beze změny."""
+    request = Request(STT_ENDPOINT, data=body,
+                      headers={"xi-api-key": KEY, "Content-Type": content_type, "Accept": "application/json"})
+    with urlopen(request, timeout=180) as response:
+        data = json.loads(response.read(400_001))
+    return (data.get("text") or "").strip()
 
 
 def synthesize(text, path):
@@ -125,7 +156,10 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(404, {"error": "route not found"})
 
     def do_POST(self):
-        if self.path.split("?", 1)[0] != "/":
+        path = self.path.split("?", 1)[0]
+        if path.endswith("/transcribe"):
+            return self.transcribe()
+        if not (path == "/" or path.endswith("/speak")):
             return self.send_json(404, {"error": "route not found"})
         if not KEY:
             return self.send_json(503, {"error": "Text-to-speech is not configured on this server."})
@@ -138,13 +172,25 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "invalid JSON"})
         if type(payload) is not dict:
             return self.send_json(400, {"error": "JSON object required"})
-        try:
-            message = console_message(payload.get("index"))
-        except (URLError, OSError, ValueError):
-            return self.send_json(502, {"error": "Agent state is unavailable."})
-        if message is None:
-            return self.send_json(400, {"error": "index must point at an agent message"})
-        text = spoken_text(message)
+        job_id = payload.get("job_id")
+        if type(job_id) is str and job_id:
+            try:
+                raw = job_text(job_id)
+            except (URLError, OSError, ValueError):
+                return self.send_json(502, {"error": "Delivery is unavailable."})
+            if raw is None:
+                return self.send_json(400, {"error": "invalid job id"})
+            text = spoken_text(raw)
+            if len(text) < 5:
+                return self.send_json(400, {"error": "this delivery has no readable text"})
+        else:
+            try:
+                message = console_message(payload.get("index"))
+            except (URLError, OSError, ValueError):
+                return self.send_json(502, {"error": "Agent state is unavailable."})
+            if message is None:
+                return self.send_json(400, {"error": "index must point at an agent message"})
+            text = spoken_text(message)
         if len(text) < 5:
             return self.send_json(400, {"error": "message has nothing to read aloud"})
         digest = hashlib.sha256(f"{VOICE}|{MODEL}|{text}".encode()).hexdigest()
@@ -156,6 +202,29 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(502, {"error": str(error)})
         audio = path.read_bytes()
         return self.send_audio(audio)
+
+    def transcribe(self):
+        if not KEY:
+            return self.send_json(503, {"error": "Speech-to-text is not configured on this server."})
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.startswith("multipart/form-data"):
+            return self.send_json(400, {"error": "multipart/form-data with an audio file is required"})
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self.send_json(400, {"error": "invalid body length"})
+        if not 0 < length <= MAX_UPLOAD_BYTES:
+            return self.send_json(413, {"error": "audio must have 1 byte to 8 MB"})
+        body = self.rfile.read(length)
+        with guard:
+            try:
+                text = transcribe_raw(body, content_type)
+            except HTTPError as error:
+                detail = error.read(400).decode("utf-8", "replace")
+                return self.send_json(502, {"error": f"ElevenLabs HTTP {error.code}: {detail[:200]}"})
+            except (URLError, OSError, ValueError) as error:
+                return self.send_json(502, {"error": f"Transcription failed: {type(error).__name__}"})
+        return self.send_json(200, {"text": text})
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <aside class="sidebar">
@@ -157,6 +157,10 @@
     <label>What should the agent deliver?
       <textarea name="description" id="task-description" required minlength="5" rows="4" placeholder="e.g. Audit the marketplace demo cart and settle it per contract."></textarea>
     </label>
+    <div class="voice-row">
+      <button type="button" class="mic" id="task-mic" title="Dictate the task (ElevenLabs Scribe)">🎤 Dictate</button>
+      <span class="text-muted" id="mic-status">Speak your task and it lands in the field above.</span>
+    </div>
     <div class="form-row">
       <label>Preferred agent
         <select name="agent" id="task-agent"><option value="">Cheapest matching seller</option></select>
@@ -179,10 +183,11 @@
   </div>
   <div id="delivery-body"><p class="muted">Loading…</p></div>
   <div class="dialog-footer">
+    <button type="button" id="delivery-speak" title="Read this delivery aloud (ElevenLabs)">🔊 Read aloud</button>
     <a class="button" id="delivery-receipt" href="#" target="_blank" rel="noopener">Open full receipt →</a>
     <button class="primary" type="button" id="delivery-done">Close</button>
   </div>
 </dialog>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>

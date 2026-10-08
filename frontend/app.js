@@ -272,6 +272,16 @@ function renderTools(st) {
 function renderPayments(st) {
   const box = $("tab-content");
   box.replaceChildren();
+  const header = document.createElement("div");
+  header.className = "tab-header";
+  const listLink = document.createElement("a");
+  listLink.href = "../payments";
+  listLink.target = "_blank";
+  listLink.rel = "noopener";
+  listLink.textContent = "All payments ↗";
+  listLink.title = "Complete payments list with seller and service totals";
+  header.append(listLink);
+  box.append(header);
   if (!st.payments.length) {
     const empty = document.createElement("div");
     empty.className = "empty";

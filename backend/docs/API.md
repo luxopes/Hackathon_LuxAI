@@ -185,6 +185,11 @@ Base URL example: `https://api.lux-ai.cz/hackathon01` (or `http://127.0.0.1:3070
 * `GET /api/offers` → `{"offers": [{"id","seller_id","name","price",
   "capability","delivery","tier","currency","service_name"}]}`
 * `GET /api/services` → `{"services": {"<capability>": {"name","delivery"}}, "currency"}`
+* `GET /payments` → HTML **payments list**: totals (paid/refunded, success rate),
+  revenue per seller and service, and a filterable table of every payment with
+  links to its receipt.
+* `GET /api/payments` → the same data as JSON (summary, revenue, services,
+  payments with ledger movements, invariant).
 * `GET /receipt/{job_id}` → self-contained HTML **payment receipt**: every ledger
   movement with reconstructed buyer balances, escrow lifecycle, contract and
   hashes, verification findings and execution receipts, reconciliation

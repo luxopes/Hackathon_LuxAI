@@ -523,6 +523,165 @@ class Market:
                 "sessions": [self.session(i) for i in ids], "sellers": wallets,
                 "invariant": {"issued": minted, "accounted": held, "holds": minted == held}}
 
+    # Veřejný seznam všech plateb (zakázek) se souhrnem a pohyby ledgeru.
+    def payments(self, limit=1000):
+        with self.db() as db:
+            jobs = [dict(r) for r in db.execute(
+                "SELECT j.id, j.session_id, j.seller_id, j.offer_id, j.price, j.state, j.created, j.contract, "
+                "s.title AS session_title, s.budget AS session_budget "
+                "FROM jobs j JOIN sessions s ON s.id = j.session_id ORDER BY j.created DESC LIMIT ?", (limit,))]
+            ledger = [dict(r) for r in db.execute(
+                "SELECT id, job_id, action, amount, created FROM ledger WHERE job_id IS NOT NULL ORDER BY id")]
+            issued = db.execute("SELECT COALESCE(SUM(budget),0) FROM sessions").fetchone()[0]
+            held = db.execute("SELECT COALESCE(SUM(available + locked),0) FROM wallets").fetchone()[0]
+        moves = {}
+        for row in ledger:
+            moves.setdefault(row["job_id"], []).append(row)
+        iso = lambda stamp: datetime.fromtimestamp(stamp, timezone.utc).isoformat()
+        items = []
+        for job in jobs:
+            contract = json.loads(job.pop("contract"))
+            job_moves = moves.get(job["id"], [])
+            settled = next((m for m in job_moves if m["action"] in ("PAYMENT_RELEASED", "REFUND_AUTHORIZED_BY_CONTRACT")), None)
+            items.append({**job, "capability": contract.get("capability"),
+                          "delivery": contract.get("delivery", ""), "created_at": iso(job["created"]),
+                          "transactions": [{"id": "lux-tx-" + str(m["id"]), "action": m["action"], "amount": m["amount"],
+                                            "created_at": iso(m["created"])} for m in job_moves],
+                          "settled_at": iso(settled["created"]) if settled else None,
+                          "settled_in_seconds": round(settled["created"] - job["created"], 3) if settled else None})
+        paid = [p for p in items if p["state"] == "PAID"]
+        refunded = [p for p in items if p["state"] == "REFUNDED"]
+        revenue = {}
+        for payment in items:
+            entry = revenue.setdefault(payment["seller_id"], {"seller": payment["seller_id"], "paid_count": 0,
+                                                              "paid_total": 0, "refunded_count": 0, "refunded_total": 0})
+            if payment["state"] == "PAID":
+                entry["paid_count"] += 1
+                entry["paid_total"] += payment["price"]
+            elif payment["state"] == "REFUNDED":
+                entry["refunded_count"] += 1
+                entry["refunded_total"] += payment["price"]
+        services = {}
+        for payment in paid:
+            entry = services.setdefault(payment["capability"], {"capability": payment["capability"], "count": 0, "total": 0})
+            entry["count"] += 1
+            entry["total"] += payment["price"]
+        return {"generated_at": datetime.now(timezone.utc).isoformat(), "simulated_payments": True,
+                "currency": CURRENCY, "payments": items,
+                "summary": {"total": len(items), "paid_count": len(paid), "refunded_count": len(refunded),
+                            "paid_total": sum(p["price"] for p in paid),
+                            "refunded_total": sum(p["price"] for p in refunded),
+                            "success_rate": round(100 * len(paid) / len(items), 1) if items else None},
+                "revenue": sorted(revenue.values(), key=lambda r: r["paid_total"], reverse=True),
+                "services": sorted(services.values(), key=lambda s: s["total"], reverse=True),
+                "invariant": {"issued": issued, "accounted": held, "holds": issued == held}}
+
+    def payments_html(self):
+        data = self.payments()
+        esc = html.escape
+        currency = esc(data["currency"])
+        summary = data["summary"]
+        invariant = data["invariant"]
+        money = lambda n: f"{n} {currency}"
+        state_chip = lambda state: f"<span class='chip {'ok' if state == 'PAID' else 'warn' if state == 'REFUNDED' else ''}'>{esc(state)}</span>"
+        rows = []
+        for payment in data["payments"]:
+            rows.append(
+                f"<tr class=payment-row data-state='{esc(payment['state'])}' data-search='{esc((payment['id'] + ' ' + payment['session_id'] + ' ' + payment['seller_id'] + ' ' + (payment['capability'] or '')).lower())}'>"
+                f"<td class=mono>{esc(payment['created_at'])}</td>"
+                f"<td class=mono><a href='receipt/{esc(payment['id'])}'>{esc(payment['id'])}</a></td>"
+                f"<td class=mono>{esc(payment['seller_id'])}</td>"
+                f"<td>{esc(payment['capability'] or '')}</td>"
+                f"<td class=num>{money(payment['price'])}</td>"
+                f"<td>{state_chip(payment['state'])}</td>"
+                f"<td class=num>{payment['settled_in_seconds'] if payment['settled_in_seconds'] is not None else '—'}{' s' if payment['settled_in_seconds'] is not None else ''}</td>"
+                f"<td class=mono>{' → '.join(esc(t['action']) for t in payment['transactions'])}</td>"
+                f"<td><a href='receipt/{esc(payment['id'])}'>receipt ↗</a></td>"
+                "</tr>")
+        revenue_rows = "".join(
+            f"<tr><td class=mono>{esc(r['seller'])}</td><td class=num>{r['paid_count']}</td><td class=num>{money(r['paid_total'])}</td>"
+            f"<td class=num>{r['refunded_count']}</td><td class=num>{money(r['refunded_total'])}</td></tr>"
+            for r in data["revenue"])
+        service_rows = "".join(
+            f"<tr><td>{esc(s['capability'] or '')}</td><td class=num>{s['count']}</td><td class=num>{money(s['total'])}</td></tr>"
+            for s in data["services"])
+        css = """
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e8edf8}
+*{box-sizing:border-box}body{max-width:1240px;margin:auto;padding:28px 20px 60px}
+h1{font-size:clamp(28px,4vw,44px);letter-spacing:-1px;margin:6px 0}h2{font-size:19px;margin:30px 0 8px}
+a{color:#a9bfff}.muted{color:#9daac4}.mono{font-family:ui-monospace,monospace;font-size:12.5px;overflow-wrap:anywhere}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+.badge{display:inline-block;border:1px solid #586275;background:#242b3c;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.6px}
+.chip{display:inline-block;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700}
+.chip.ok{background:#12351f;color:#85edb2}.chip.warn{background:#3a3415;color:#f9cf71}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:16px}
+.card{background:#141d32;border:1px solid #29364e;border-radius:14px;padding:14px 16px}
+.card label{display:block;font-size:11px;color:#9daac4;letter-spacing:.4px}.card b{font-size:22px}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+th{color:#9daac4;text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
+td,th{padding:8px;border-bottom:1px solid #29364e;vertical-align:top}
+tr.hidden{display:none}
+.controls{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+input,select{background:#141d32;color:#e8edf8;border:1px solid #586275;border-radius:9px;padding:8px 10px;font-size:13px}
+.notice{border-left:3px solid #fbbf24;background:#1e2435;padding:12px 16px;border-radius:8px;margin-top:16px;font-size:13px;line-height:1.6}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+"""
+        return f"""<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payments · Lux Coins marketplace</title><style>{css}</style>
+<div class="row"><span class="badge">PAYMENTS</span><span class="badge" style="color:#ff9393">SIMULATED PAYMENTS</span>
+<span class="chip {'ok' if invariant['holds'] else 'warn'}">INVARIANT {'HOLDS' if invariant['holds'] else 'BROKEN'}</span>
+<span class="muted mono">{invariant['issued']} issued == {invariant['accounted']} accounted</span></div>
+<h1>All payments</h1>
+<p class="muted">Every agent purchase settled on this marketplace, newest first. Generated {esc(data['generated_at'])}.
+Payments are simulated Lux Coins in a central SQLite ledger; amounts, IDs and hashes mirror a real payment rail.
+Open any row's receipt for the complete audit trail.</p>
+
+<div class="cards">
+<div class="card"><label>Payments</label><b>{summary['total']}</b></div>
+<div class="card"><label>Paid</label><b style="color:#85edb2">{summary['paid_count']} · {money(summary['paid_total'])}</b></div>
+<div class="card"><label>Refunded</label><b style="color:#f9cf71">{summary['refunded_count']} · {money(summary['refunded_total'])}</b></div>
+<div class="card"><label>Success rate</label><b>{summary['success_rate'] if summary['success_rate'] is not None else '—'}{' %' if summary['success_rate'] is not None else ''}</b></div>
+</div>
+
+<h2>Sellers</h2>
+<table><tr><th>Seller</th><th class="num">Paid jobs</th><th class="num">Revenue</th><th class="num">Refunded jobs</th><th class="num">Refunded</th></tr>{revenue_rows}</table>
+
+<h2>Services</h2>
+<table><tr><th>Service</th><th class="num">Paid jobs</th><th class="num">Revenue</th></tr>{service_rows}</table>
+
+<h2>Payment list</h2>
+<div class="controls">
+<input id="q" type="search" placeholder="Search id, session, seller, service…" style="min-width:280px">
+<select id="state"><option value="">All states</option><option value="PAID">Paid</option><option value="REFUNDED">Refunded</option></select>
+<span class="muted" id="count"></span>
+</div>
+<table id="payments">
+<tr><th>Created (UTC)</th><th>Payment ID</th><th>Seller</th><th>Service</th><th class="num">Amount</th><th>State</th><th class="num">Settled in</th><th>Ledger movements</th><th></th></tr>
+{''.join(rows)}
+</table>
+<div class="notice"><strong>Honest disclosure.</strong> Simulated test credits only — no real money and no blockchain.
+“Nothing pays twice” is enforced by unique idempotency keys and database constraints; “caps hold” by
+wallet budgets and the invariant above.</div>
+<p class="muted" style="margin-top:24px"><a href="..">← marketplace overview</a> · <a href="../web/">agent console</a> · <a href="../api/payments">/api/payments</a></p>
+<script>
+const rows = [...document.querySelectorAll('.payment-row')];
+const q = document.getElementById('q'), state = document.getElementById('state'), count = document.getElementById('count');
+function apply() {{
+  const needle = q.value.trim().toLowerCase(), wanted = state.value;
+  let shown = 0;
+  for (const row of rows) {{
+    const okSearch = !needle || row.dataset.search.includes(needle);
+    const okState = !wanted || row.dataset.state === wanted;
+    row.classList.toggle('hidden', !(okSearch && okState));
+    if (okSearch && okState) shown++;
+  }}
+  count.textContent = shown + ' / ' + rows.length;
+}}
+q.addEventListener('input', apply); state.addEventListener('change', apply); apply();
+</script>
+</html>"""
+
     # Veřejný doklad o platbě: kompletní auditní stopa jedné zakázky.
     LEDGER_LABELS = {
         "LUX_COINS_ISSUED": ("Test credits issued to the buyer wallet", "issue"),
@@ -743,7 +902,7 @@ execution receipts) and do not guarantee general semantic correctness.</div>
 </div>
 
 <details><summary>Raw receipt JSON</summary><pre>{raw}</pre></details>
-<p class="muted" style="margin-top:26px"><a href="..">← marketplace overview</a> · <a href="../web/">agent console</a></p>
+<p class="muted" style="margin-top:26px"><a href="..">← marketplace overview</a> · <a href="../payments">all payments</a> · <a href="../web/">agent console</a></p>
 </html>"""
 
 
@@ -829,6 +988,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {"offers": market.offers()})
             if path == "/api/services":
                 return self.send(200, {"services": SERVICES, "currency": CURRENCY})
+            if path == "/api/payments":
+                return self.send(200, market.payments())
+            if path == "/payments":
+                return self.send(200, market.payments_html(), "text/html; charset=utf-8")
             if path.startswith("/api/receipt/"):
                 return self.send(200, market.receipt(path.removeprefix("/api/receipt/")))
             if path.startswith("/receipt/"):

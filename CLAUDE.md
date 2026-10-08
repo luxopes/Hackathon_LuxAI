@@ -144,6 +144,9 @@ POST /api/jobs/{id}/refund  → REFUNDED (failed delivery only)
 
 ## Payment receipts (public proof page)
 
+`GET /payments` (and `/api/payments`) lists every payment with totals, revenue
+per seller/service and a filterable table; each row links to its receipt.
+
 `GET /receipt/{job_id}` (and `/api/receipt/{job_id}` for JSON) renders the full
 audit trail of one payment: double-entry ledger movements with reconstructed
 buyer balances, escrow lifecycle with durations, contract + contract SHA-256,

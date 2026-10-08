@@ -143,11 +143,70 @@ function renderBody(text) {
   return out;
 }
 
+const DELIVERY_RE = /^(?:Done|Hotovo) · /;
+
+function deliveryPayment(headerLine) {
+  const parts = headerLine.split(" · ");
+  const seller = parts[1];
+  const amount = parseInt((parts[2] || "").replace(/[^0-9]/g, ""), 10);
+  const payments = (fullState && fullState.payments) || [];
+  for (let index = payments.length - 1; index >= 0; index -= 1) {
+    const payment = parsePayment(payments[index]);
+    if (payment.seller === seller && payment.amount === amount) return payment.id;
+  }
+  return null;
+}
+
 function renderChat(messages) {
   const box = $("messages");
   const pinned = box.scrollTop + box.clientHeight >= box.scrollHeight - 80;
   box.replaceChildren();
   messages.forEach((message, index) => {
+    const content = message.content || "";
+    const firstLine = content.split("\n")[0].trim();
+    const isDelivery = message.role !== "You" && DELIVERY_RE.test(firstLine);
+    const tooLong = message.role !== "You" && content.length > 420;
+
+    if (isDelivery || tooLong) {
+      // Kompaktní karta: první řádek + přepínač textu; dlouhé dodávky nezabírají chat.
+      const card = document.createElement("div");
+      card.className = "msg agent compact";
+      const head = document.createElement("div");
+      head.className = "head";
+      if (isDelivery) {
+        const tick = document.createElement("span");
+        tick.className = "tick";
+        tick.textContent = "✓";
+        head.append(tick);
+      }
+      const title = document.createElement("b");
+      title.textContent = firstLine.length > 120 ? firstLine.slice(0, 117) + "…" : firstLine;
+      const toggle = document.createElement("button");
+      toggle.className = "toggle";
+      toggle.textContent = "show text ▸";
+      toggle.addEventListener("click", () => {
+        card.classList.toggle("open");
+        toggle.textContent = card.classList.contains("open") ? "hide text ▾" : "show text ▸";
+      });
+      head.append(title, toggle);
+      if (isDelivery) {
+        const jobId = deliveryPayment(firstLine);
+        if (jobId) {
+          const view = document.createElement("button");
+          view.className = "view";
+          view.textContent = "open delivery";
+          view.addEventListener("click", () => openDelivery(jobId));
+          head.append(view);
+        }
+      }
+      const body = document.createElement("div");
+      body.className = "body";
+      body.append(...renderBody(content));
+      card.append(head, body);
+      box.append(card);
+      return;
+    }
+
     const row = document.createElement("div");
     row.className = "msg " + (message.role === "You" ? "user" : "agent");
     const role = document.createElement("div");
@@ -155,8 +214,8 @@ function renderChat(messages) {
     role.textContent = message.role === "You" ? "You" : "Agent · LuxAI Flash";
     const body = document.createElement("div");
     body.className = "body";
-    body.append(...renderBody(message.content));
-    if (message.role !== "You" && message.content.trim().length > 20) {
+    body.append(...renderBody(content));
+    if (message.role !== "You" && content.trim().length > 20) {
       const speak = document.createElement("button");
       speak.className = "speak";
       speak.dataset.index = String(index);
@@ -171,6 +230,22 @@ function renderChat(messages) {
   if (pinned) box.scrollTop = box.scrollHeight;
   $("conv-count").textContent = messages.length + " messages";
   refreshSpeakButtons();
+}
+
+function renderToolStrip(tools) {
+  const strip = $("tool-strip");
+  const signature = tools.map((tool) => tool.id + tool.summary).join("|");
+  if (strip.dataset.signature === signature) return;
+  strip.dataset.signature = signature;
+  strip.replaceChildren();
+  for (const tool of tools.slice(-12).reverse()) {
+    const parts = (tool.summary || "").split(" · ");
+    const chip = document.createElement("span");
+    chip.className = "tool-chip" + (parts[0] === "RUNNING" ? " running" : parts[0] === "ERROR" ? " error" : "");
+    chip.title = tool.summary;
+    chip.textContent = (parts[1] || "tool") + (parts[3] ? " · " + parts[3] : "");
+    strip.append(chip);
+  }
 }
 
 /* ---------- payments helpers ---------- */
@@ -651,6 +726,7 @@ async function poll() {
           lastAuditRev = full.audit_revision;
           renderTasks(full.payments || []);
           renderActivity(full.tools || []);
+          renderToolStrip(full.tools || []);
         }
       }
     }

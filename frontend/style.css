@@ -152,6 +152,20 @@ tbody tr:hover{background:#fafbfc}
 .balance-line span{display:block;width:0;height:100%;background:#14a368;transition:width .4s ease}
 .balance-foot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)}
 /* ---------- conversation ---------- */
+.tool-strip{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 12px}
+.tool-strip:empty{display:none}
+.tool-chip{font:10.5px var(--mono);padding:3px 8px;border-radius:20px;background:#f0f2f5;color:#60708a}
+.tool-chip.running{background:#eaf1ff;color:#245dee}
+.tool-chip.error{background:#fcebed;color:#bf384d}
+.msg.compact{padding:12px 20px}
+.msg.compact .head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.msg.compact .tick{color:var(--green);font-weight:700}
+.msg.compact .head b{font-size:13px;font-weight:600}
+.msg.compact .toggle{border:0;background:transparent;color:var(--blue);font-size:12px;padding:0 2px}
+.msg.compact .toggle:hover{background:transparent;text-decoration:underline}
+.msg.compact .view{border:1px solid var(--line);background:#fff;border-radius:20px;font-size:11px;padding:2px 9px;color:var(--muted)}
+.msg.compact .body{margin-top:8px;display:none}
+.msg.compact.open .body{display:block}
 #messages{max-height:420px;overflow-y:auto}
 .msg{padding:15px 20px;border-bottom:1px solid #eef0f4}
 .msg:last-child{border-bottom:0}

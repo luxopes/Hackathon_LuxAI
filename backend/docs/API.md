@@ -185,6 +185,13 @@ Base URL example: `https://api.lux-ai.cz/hackathon01` (or `http://127.0.0.1:3070
 * `GET /api/offers` → `{"offers": [{"id","seller_id","name","price",
   "capability","delivery","tier","currency","service_name"}]}`
 * `GET /api/services` → `{"services": {"<capability>": {"name","delivery"}}, "currency"}`
+* `GET /receipt/{job_id}` → self-contained HTML **payment receipt**: every ledger
+  movement with reconstructed buyer balances, escrow lifecycle, contract and
+  hashes, verification findings and execution receipts, reconciliation
+  (`escrow_locked == settled == price`), the market-wide invariant and the raw
+  JSON. Link to it from any job id.
+* `GET /api/receipt/{job_id}` → the same receipt as machine-readable JSON
+  (`receipt_version: "1.0"`).
 
 ### Client-token endpoints
 

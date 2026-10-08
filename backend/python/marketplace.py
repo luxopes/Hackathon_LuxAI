@@ -6,6 +6,7 @@ import contextlib
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import html
 import json
 import os
 from pathlib import Path
@@ -522,6 +523,229 @@ class Market:
                 "sessions": [self.session(i) for i in ids], "sellers": wallets,
                 "invariant": {"issued": minted, "accounted": held, "holds": minted == held}}
 
+    # Veřejný doklad o platbě: kompletní auditní stopa jedné zakázky.
+    LEDGER_LABELS = {
+        "LUX_COINS_ISSUED": ("Test credits issued to the buyer wallet", "issue"),
+        "ESCROW_LOCKED": ("Funds locked in escrow for the job", "escrow"),
+        "RESULT_DELIVERED": ("Seller delivery recorded by the marketplace", "delivery"),
+        "DELIVERY_FAILED": ("Seller delivery failed or was invalid", "failure"),
+        "PAYMENT_RELEASED": ("Escrow released to the seller after verification", "payment"),
+        "REFUND_AUTHORIZED_BY_CONTRACT": ("Escrow returned to the buyer by contract", "refund"),
+        "EXECUTION_INTERRUPTED": ("Execution interrupted (restart); job settled separately", "failure"),
+    }
+
+    def receipt(self, job_id):
+        if type(job_id) is not str or not 1 <= len(job_id) <= 100:
+            raise Problem(400, "invalid job id")
+        job = self.job(job_id)
+        payment = self.payment(job_id)
+        with self.db() as db:
+            session_row = db.execute("SELECT * FROM sessions WHERE id = ?", (job["session_id"],)).fetchone()
+            if not session_row:
+                raise Problem(404, "session not found")
+            wallet = dict(db.execute("SELECT * FROM wallets WHERE id = ?", (job["session_id"],)).fetchone())
+            seller_wallet = dict(db.execute("SELECT * FROM wallets WHERE id = ?", (job["seller_id"],)).fetchone())
+            ledger_rows = [dict(row) for row in db.execute("SELECT * FROM ledger WHERE session_id = ? ORDER BY id", (job["session_id"],))]
+            minted = db.execute("SELECT COALESCE(SUM(budget),0) FROM sessions").fetchone()[0]
+            held = db.execute("SELECT COALESCE(SUM(available + locked),0) FROM wallets").fetchone()[0]
+        # Rekonstrukce zůstatků z ledgeru: každý pohyb i se stavem po něm.
+        available = locked = 0
+        timeline = []
+        job_moves = []
+        for row in ledger_rows:
+            action, amount = row["action"], row["amount"]
+            if action == "LUX_COINS_ISSUED":
+                available += amount
+            elif action == "ESCROW_LOCKED":
+                available -= amount
+                locked += amount
+            elif action == "PAYMENT_RELEASED":
+                locked -= amount
+            elif action == "REFUND_AUTHORIZED_BY_CONTRACT":
+                locked -= amount
+                available += amount
+            label, kind = self.LEDGER_LABELS.get(action, (action.replace("_", " ").capitalize(), "other"))
+            entry = {"id": "lux-tx-" + str(row["id"]), "ledger_id": row["id"], "job_id": row["job_id"],
+                     "action": action, "label": label, "kind": kind, "amount": amount,
+                     "available_after": available, "locked_after": locked, "created": row["created"],
+                     "created_at": datetime.fromtimestamp(row["created"], timezone.utc).isoformat()}
+            timeline.append(entry)
+            if row["job_id"] == job_id:
+                job_moves.append(entry)
+        credits = sum(e["amount"] for e in job_moves if e["kind"] in ["escrow", "payment", "refund"])
+        escrow_locked = sum(e["amount"] for e in job_moves if e["kind"] == "escrow")
+        settled = sum(e["amount"] for e in job_moves if e["kind"] in ["payment", "refund"])
+        return {"receipt_version": "1.0", "generated_at": datetime.now(timezone.utc).isoformat(),
+                "simulated_payments": True, "currency": CURRENCY,
+                "job": job, "payment": payment, "verification": self.verification(job_id),
+                "session": {"id": session_row["id"], "title": session_row["title"], "budget": session_row["budget"],
+                            "fixture": session_row["fixture"], "service": session_row["service"],
+                            "created": session_row["created"],
+                            "created_at": datetime.fromtimestamp(session_row["created"], timezone.utc).isoformat()},
+                "wallets": {"buyer": wallet, "seller": seller_wallet},
+                "timeline": timeline, "job_timeline": job_moves,
+                "reconciliation": {"escrow_locked": escrow_locked, "settled": settled, "price": job["price"],
+                                   "balanced": escrow_locked == settled == job["price"] and credits >= 0,
+                                   "movements": len(job_moves)},
+                "invariant": {"issued": minted, "accounted": held, "holds": minted == held}}
+
+    def receipt_html(self, job_id):
+        data = self.receipt(job_id)
+        job, payment, verification = data["job"], data["payment"], data["verification"]
+        esc = html.escape
+        money = lambda n: f"{n} {esc(data['currency'])}"
+        balances = {entry["ledger_id"]: entry for entry in data["timeline"]}
+        state = job["state"]
+        state_cls = "ok" if state == "PAID" else "warn" if state == "REFUNDED" else ""
+        rows = []
+        for tx in payment["transactions"]:
+            balance = balances.get(tx["ledger_id"], {})
+            rows.append(
+                "<tr>"
+                f"<td class=mono>{esc(tx['id'])}</td>"
+                f"<td class=num>{tx['ledger_id']}</td>"
+                f"<td><b>{esc(tx['action'])}</b></td>"
+                f"<td class=num>{money(tx['amount'])}</td>"
+                f"<td class=mono>{esc(tx['from_wallet'])} · {esc(tx['from_account'])}</td>"
+                f"<td class=mono>{esc(tx['to_wallet'])} · {esc(tx['to_account'])}</td>"
+                f"<td class=num>{balance.get('available_after', '—')}</td>"
+                f"<td class=num>{balance.get('locked_after', '—')}</td>"
+                f"<td class=mono>{esc(tx['created_at'])}</td>"
+                "</tr>")
+        timeline_rows = []
+        previous = None
+        for entry in data["job_timeline"]:
+            delta = ""
+            if previous is not None:
+                delta = f"+{entry['created'] - previous:.3f}s"
+            previous = entry["created"]
+            timeline_rows.append(
+                "<tr>"
+                f"<td class=num>{entry['ledger_id']}</td>"
+                f"<td><span class='badge {esc(entry['kind'])}'>{esc(entry['kind'])}</span> {esc(entry['label'])}</td>"
+                f"<td class=num>{money(entry['amount']) if entry['amount'] else '—'}</td>"
+                f"<td class=mono>{esc(entry['created_at'])} <span class=muted>{delta}</span></td>"
+                "</tr>")
+        checks = verification.get("checks") or []
+        check_rows = "".join(
+            f"<tr><td class=mono>{esc(c['case_id'])}</td><td class=num>{c['expected_cents']}</td>"
+            f"<td class=num>{c['observed_cents']}</td>"
+            f"<td>{'<span class=\'badge ok\'>PASSED</span>' if c['passed'] else '<span class=\'badge failure\'>FAILED</span>'}</td></tr>"
+            for c in checks if type(c) is dict)
+        reasons = verification.get("reasons") or []
+        reason_html = "".join(f"<li>{esc(r)}</li>" for r in reasons) or "<li>No discrepancies found.</li>"
+        receipts = "".join(f"<li class=mono>{esc(r)}</li>" for r in payment["verification_receipts"]) or "<li class=muted>None</li>"
+        artifact = (job.get("result") or {}).get("artifact") or {}
+        delivery_preview = ""
+        if artifact:
+            preview = artifact.get("content") or artifact.get("summary") or ""
+            delivery_preview = (f"<h3>Delivery preview</h3><pre class=preview>{esc(preview[:1500])}</pre>"
+                                + ("<p class=muted>…truncated; the full artifact is in the raw JSON below.</p>" if len(preview) > 1500 else ""))
+        reconciliation = data["reconciliation"]
+        invariant = data["invariant"]
+        raw = esc(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+        contract = esc(json.dumps(job["contract"], ensure_ascii=False, indent=2, sort_keys=True))
+        css = """
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#e8edf8}
+*{box-sizing:border-box}body{max-width:1180px;margin:auto;padding:28px 20px 60px}
+h1{font-size:clamp(28px,4vw,44px);letter-spacing:-1px;margin:6px 0}h2{font-size:20px;margin:34px 0 10px}
+h3{font-size:15px;margin:18px 0 6px;color:#c7d3ea}
+a{color:#a9bfff}.muted{color:#9daac4}.mono{font-family:ui-monospace,monospace;font-size:12.5px;overflow-wrap:anywhere}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+.badge{display:inline-block;border:1px solid #586275;background:#242b3c;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.6px}
+.badge.ok,.badge.payment{color:#85edb2;border-color:#2f6b45}.badge.warn,.badge.escrow{color:#f9cf71;border-color:#7a6327}
+.badge.failure,.badge.refund{color:#ff9393;border-color:#7c4a4a}.badge.issue,.badge.delivery{color:#a9bfff}
+.chip{display:inline-block;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700}
+.chip.ok{background:#12351f;color:#85edb2}.chip.warn{background:#3a3415;color:#f9cf71}
+.card{background:#141d32;border:1px solid #29364e;border-radius:14px;padding:18px;margin-top:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.fact label{display:block;font-size:11px;color:#9daac4;letter-spacing:.4px}.fact b,.fact .mono{font-size:14px}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+th{color:#9daac4;text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
+td,th{padding:9px 8px;border-bottom:1px solid #29364e;vertical-align:top}
+pre{background:#0b1020;border:1px solid #29364e;border-radius:10px;padding:12px;overflow:auto;font:12px ui-monospace,monospace;max-height:420px}
+pre.preview{max-height:260px;white-space:pre-wrap}
+details{margin-top:12px}summary{cursor:pointer;color:#a9bfff}
+.notice{border-left:3px solid #fbbf24;background:#1e2435;padding:12px 16px;border-radius:8px;margin-top:14px;font-size:13px;line-height:1.6}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+ul{margin:6px 0 0 18px;padding:0}
+"""
+        generated = esc(data["generated_at"])
+        return f"""<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment receipt · {esc(job_id)}</title><style>{css}</style>
+<div class="row"><span class="badge">PAYMENT RECEIPT</span>
+<span class="badge failure">SIMULATED PAYMENTS</span>
+<span class="chip {state_cls}">{esc(state)}</span>
+<span class="muted mono">{esc(job_id)}</span></div>
+<h1>{money(job['price'])}</h1>
+<p class="muted">Complete audit trail of one agent-to-agent purchase: contract, escrow,
+verification, settlement and the central ledger entries behind every movement.
+Generated {generated}.</p>
+<div class="card grid">
+<div class="fact"><label>Amount</label><b>{money(job['price'])}</b></div>
+<div class="fact"><label>Status</label><b>{esc(state)}</b></div>
+<div class="fact"><label>Payer (buyer wallet)</label><div class="mono">{esc(job['session_id'])}</div></div>
+<div class="fact"><label>Payee (seller)</label><div class="mono">{esc(job['seller_id'])}</div></div>
+<div class="fact"><label>Offer / service</label><div class="mono">{esc(job['offer_id'])} · {esc(job['contract'].get('capability', ''))}</div></div>
+<div class="fact"><label>Idempotency key</label><div class="mono">{esc(job['idempotency_key'])}</div></div>
+<div class="fact"><label>Created (UTC)</label><div class="mono">{esc(data['session']['created_at'])}</div></div>
+<div class="fact"><label>Method</label><div>Central SQLite ledger · escrow · double-entry</div></div>
+<div class="fact"><label>Session</label><div class="mono">{esc(data['session']['title'])}<br>budget {money(data['session']['budget'])} · fixture {esc(data['session']['fixture'])}</div></div>
+<div class="fact"><label>Buyer wallet now</label><div class="mono">available {data['wallets']['buyer']['available']} · locked {data['wallets']['buyer']['locked']}</div></div>
+<div class="fact"><label>Seller wallet now</label><div class="mono">available {data['wallets']['seller']['available']} · locked {data['wallets']['seller']['locked']}</div></div>
+<div class="fact"><label>Contract SHA-256</label><div class="mono">{esc(payment['contract_sha256'])}</div></div>
+</div>
+
+<h2>Money movement</h2>
+<div class="card"><table>
+<tr><th>Transaction ID</th><th class="num">Ledger #</th><th>Action</th><th class="num">Amount</th><th>From</th><th>To</th><th class="num">Buyer avail. after</th><th class="num">Buyer locked after</th><th>Timestamp (UTC)</th></tr>
+{''.join(rows)}
+</table>
+<p class="muted">Every row is an immutable ledger record; the buyer balance columns are reconstructed
+from the session ledger (Lux Coins issued → escrow locked → released or refunded).</p></div>
+
+<h2>Settlement lifecycle</h2>
+<div class="card"><table>
+<tr><th class="num">Ledger #</th><th>Event</th><th class="num">Amount</th><th>When (UTC, + since previous)</th></tr>
+{''.join(timeline_rows)}
+</table>
+<p class="muted">One settlement per job: a verified delivery releases the escrow, an invalid one refunds it.
+The unique idempotency key and database constraints make a second charge impossible.</p></div>
+
+<h2>Contract</h2>
+<div class="card"><pre>{contract}</pre>
+<p class="muted">Contract SHA-256: <span class="mono">{esc(payment['contract_sha256'])}</span></p></div>
+
+<h2>Verification</h2>
+<div class="card">
+<div class="row"><span class="chip {'ok' if verification['valid_delivery'] else 'warn'}">{'VALID DELIVERY' if verification['valid_delivery'] else 'NOT VERIFIED'}</span>
+<span class="muted">{esc(verification.get('scope', ''))}</span></div>
+<h3>Findings</h3><ul>{reason_html}</ul>
+{('<h3>Cart checks</h3><table><tr><th>Case</th><th class="num">Expected (cents)</th><th class="num">Observed (cents)</th><th>Result</th></tr>' + check_rows + '</table>') if check_rows else ''}
+<h3>Execution receipts</h3><ul>{receipts}</ul>
+<p class="muted">Delivery SHA-256: <span class="mono">{esc(payment['result_sha256'] or '—')}</span></p>
+{delivery_preview}
+</div>
+
+<h2>Integrity</h2>
+<div class="card">
+<div class="row"><span class="chip {'ok' if reconciliation['balanced'] else 'warn'}">ESCROW RECONCILIATION {'BALANCED' if reconciliation['balanced'] else 'MISMATCH'}</span>
+<span class="muted">locked {money(reconciliation['escrow_locked'])} · settled {money(reconciliation['settled'])} · price {money(reconciliation['price'])} · {reconciliation['movements']} movements</span></div>
+<div class="row" style="margin-top:10px"><span class="chip {'ok' if invariant['holds'] else 'warn'}">MARKET INVARIANT {'HOLDS' if invariant['holds'] else 'BROKEN'}</span>
+<span class="muted">issued {invariant['issued']} == accounted {invariant['accounted']} Lux Coins</span></div>
+<div class="notice"><strong>Honest disclosure.</strong> Payments are simulated Lux Coins in a central SQLite
+ledger on this marketplace; nothing here is a blockchain transaction and transaction IDs are scoped to this
+database. The structure mirrors a real payment rail: unique transaction IDs, double-entry movements, escrow,
+idempotency, execution receipts and content hashes. Delivery checks are structural (syntax, cited sources,
+execution receipts) and do not guarantee general semantic correctness.</div>
+<p class="muted">Raw machine-readable receipt: <a href="../api/receipt/{esc(job_id)}">../api/receipt/{esc(job_id)}</a></p>
+</div>
+
+<details><summary>Raw receipt JSON</summary><pre>{raw}</pre></details>
+<p class="muted" style="margin-top:26px"><a href="..">← marketplace overview</a> · <a href="../web/">agent console</a></p>
+</html>"""
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "ProofPayMVP/1"
@@ -605,6 +829,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {"offers": market.offers()})
             if path == "/api/services":
                 return self.send(200, {"services": SERVICES, "currency": CURRENCY})
+            if path.startswith("/api/receipt/"):
+                return self.send(200, market.receipt(path.removeprefix("/api/receipt/")))
+            if path.startswith("/receipt/"):
+                return self.send(200, market.receipt_html(path.removeprefix("/receipt/")), "text/html; charset=utf-8")
             market.require_client(token)
             if path.startswith("/api/sessions/"):
                 return self.send(200, market.session(path.removeprefix("/api/sessions/")))

@@ -142,6 +142,17 @@ POST /api/jobs/{id}/refund  → REFUNDED (failed delivery only)
 * Conversation state is in-memory; a restart starts a new conversation while
   wallets/jobs/ledger stay in SQLite.
 
+## Payment receipts (public proof page)
+
+`GET /receipt/{job_id}` (and `/api/receipt/{job_id}` for JSON) renders the full
+audit trail of one payment: double-entry ledger movements with reconstructed
+buyer balances, escrow lifecycle with durations, contract + contract SHA-256,
+verification findings and execution receipts, delivery SHA-256, an escrow
+reconciliation check (`escrow_locked == settled == price`) and the market
+invariant (`issued == accounted`). The console's Payments tab links to it (🧾)
+and the public dashboard links each job. Everything is explicitly labelled
+simulated.
+
 ## Verification
 
 ```sh

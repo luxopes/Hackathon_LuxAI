@@ -228,6 +228,8 @@ button.danger { border-color: #7c4a4a; color: var(--red); }
 .entry .source { color: var(--accent); font-size: 11px; }
 .entry .duration { color: var(--muted); font-size: 11px; font-family: var(--mono); }
 .entry .chevron { margin-left: auto; color: var(--muted); }
+a.receipt-link { text-decoration: none; font-size: 14px; padding: 2px 6px; border-radius: 6px; }
+a.receipt-link:hover { background: #24345a; }
 .chip {
   font: 10.5px var(--mono);
   font-weight: 700;

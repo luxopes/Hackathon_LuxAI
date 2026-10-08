@@ -294,10 +294,18 @@ function renderPayments(st) {
     const id = document.createElement("span");
     id.className = "duration";
     id.textContent = parts.slice(3).join(" · ");
+    const receiptLink = document.createElement("a");
+    receiptLink.className = "receipt-link";
+    receiptLink.href = "../receipt/" + p.id;
+    receiptLink.target = "_blank";
+    receiptLink.rel = "noopener";
+    receiptLink.textContent = "🧾";
+    receiptLink.title = "Full payment receipt (ledger, escrow, hashes, verification)";
+    receiptLink.addEventListener("click", (event) => event.stopPropagation());
     const chevron = document.createElement("span");
     chevron.className = "chevron";
     chevron.textContent = expanded[p.id] ? "▾" : "▸";
-    head.append(chip, name, id, chevron);
+    head.append(chip, name, id, receiptLink, chevron);
     head.addEventListener("click", () => {
       expanded[p.id] = !expanded[p.id];
       renderTab(fullState);

@@ -37,6 +37,114 @@ root_tasks = {}
 account_wallets = {}
 account_budgets = {}
 worker_owner = {"value": ""}
+# Stav se ukládá na disk (dva střídavé soubory), aby restart služby
+# nesmazal účtům jejich úlohy, konverzaci ani notifikace.
+state_file_a = "/var/lib/proofpay-mvp/console-state-a.json"
+state_file_b = "/var/lib/proofpay-mvp/console-state-b.json"
+state_slot = {"which": "b", "last_save": 0.0}
+owner_list = []
+
+function state_adopt(source):
+    # Obnova sdíleného (tagovaného) stavu po restartu služby.
+    state["messages"] = source.get("messages", [{"role": "Agent", "content": greeting, "who": ""}])
+    state["wallet"] = source.get("wallet", None)
+    state["budget"] = source.get("budget", None)
+    state["question"] = source.get("question", None)
+    state["status"] = "Ready · send another message"
+    state["busy"] = False
+    state["tools"] = source.get("tools", [])
+    state["payments"] = source.get("payments", [])
+    state["notifications"] = source.get("notifications", [])
+    state["notification_seq"] = Int(source.get("notification_seq", 0))
+    state["messages_revision"] = Int(source.get("messages_revision", 0)) + 1
+    state["audit_revision"] = Int(source.get("audit_revision", 0)) + 1
+    state["notifications_revision"] = Int(source.get("notifications_revision", 0)) + 1
+end
+
+function workspaces_snapshot():
+    saved = {"saved": time.time(), "owners": [], "state": state, "chats": {}, "wallets": {}, "budgets": {}}
+    for owner in owner_list:
+        saved["owners"].append(owner)
+        if owner in chats:
+            saved["chats"][owner] = chats[owner]
+        end
+        if owner in account_wallets:
+            saved["wallets"][owner] = account_wallets[owner]
+        end
+        if owner in account_budgets:
+            saved["budgets"][owner] = account_budgets[owner]
+        end
+    end
+    return saved
+end
+
+function workspaces_save(force=False):
+    # Střídavé soubory: kdyby proces spadl uprostřed zápisu, druhý zůstane celý.
+    if not force and time.time() - state_slot["last_save"] < 2.0:
+        return
+    end
+    state_slot["last_save"] = time.time()
+    which = "a"
+    if state_slot["which"] == "a":
+        which = "b"
+    end
+    path = state_file_a
+    if which == "b":
+        path = state_file_b
+    end
+    try:
+        payload = json.encode(workspaces_snapshot()) + chr(10)
+    else:
+        print "state save FAILED while encoding"
+        return
+    end
+    try:
+        call writefile(path, payload)
+        state_slot["which"] = which
+    else:
+        print "state save FAILED for " + path + " (" + String(len(payload)) + " bytes)"
+    end
+end
+
+function workspaces_load():
+    best = None
+    for path in [state_file_a, state_file_b]:
+        try:
+            raw = readfile(path)
+        else:
+            continue
+        end
+        try:
+            data = json.decode(raw)
+        else:
+            continue
+        end
+        if type(data) != "Dictionary":
+            continue
+        end
+        if best == None or Float(data.get("saved", 0)) > Float(best.get("saved", 0)):
+            best = data
+        end
+    end
+    if best == None:
+        return
+    end
+    call state_adopt(best.get("state", {}))
+    for owner in best.get("owners", []):
+        if owner not in owner_list:
+            owner_list.append(owner)
+        end
+    end
+    for owner in best.get("chats", {}):
+        chats[owner] = best["chats"][owner]
+    end
+    for owner in best.get("wallets", {}):
+        account_wallets[owner] = best["wallets"][owner]
+    end
+    for owner in best.get("budgets", {}):
+        account_budgets[owner] = best["budgets"][owner]
+    end
+end
 
 function account_chat(who):
     if who == "":
@@ -44,6 +152,9 @@ function account_chat(who):
     end
     if who not in chats:
         chats[who] = agent.conversation()
+        if who not in owner_list:
+            owner_list.append(who)
+        end
     end
     return chats[who]
 end
@@ -481,6 +592,7 @@ function progress(event):
         state["audit_revision"] += 1
     end
     call unlock()
+    call workspaces_save()
 end
 
 function worker():
@@ -558,6 +670,7 @@ function worker():
         call unlock()
     end
     call atomic_xchg(flags, 1, 1)
+    call workspaces_save(True)
     # Běžící worker končí; od této chvíle smí hlavní vlákno znovu gc().
     call atomic_xchg(running, 0, 0)
 end
@@ -575,6 +688,7 @@ function start(kind, prompt, owner=""):
     if kind == "turn":
         call append_message("You", prompt, owner)
     end
+    call workspaces_save(True)
     call unlock()
     unsafe:
         tid = thread_spawn(worker)
@@ -755,6 +869,7 @@ function reset_conversation(who=""):
     state["messages_revision"] += 1
     state["audit_revision"] += 1
     call unlock()
+    call workspaces_save(True)
 end
 
 function route(client, request):
@@ -1158,6 +1273,7 @@ end
 state["budget"] = config["budget"]
 users_file = env.get("PROOFPAY_USERS_FILE", users_file)
 call users_load()
+call workspaces_load()
 try:
     call serve()
 else:

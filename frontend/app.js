@@ -133,6 +133,7 @@ function renderBody(text) {
     const line = document.createElement("span");
     line.className = "line";
     if (raw.startsWith("OK ·") || raw.startsWith("OK")) line.className += " ok-line";
+    else if (raw.includes("AUDIT FINDING") || raw.includes("NÁLEZ")) line.className += " find-line";
     else if (raw.includes("CART BUG") || raw.includes("CHYBA")) line.className += " bad-line";
     else if (raw.trim().startsWith("•")) line.className += " info-line";
     line.innerHTML = linkify(raw === "" ? " " : raw);

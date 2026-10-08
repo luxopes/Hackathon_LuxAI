@@ -163,6 +163,7 @@ tbody tr:hover{background:#fafbfc}
 .msg .body pre{background:#f9fafb;border:1px solid var(--line);border-radius:6px;padding:10px 12px;overflow-x:auto;font:12px var(--mono);margin:8px 0}
 .msg .body .line{display:block}
 .msg .body .ok-line{color:var(--green);font-weight:600}
+.msg .body .find-line{color:#a36b20;font-weight:650}
 .msg .body .bad-line{color:#bf384d;font-weight:700}
 .msg .body .info-line{color:var(--muted)}
 button.speak{border:1px solid var(--line);background:#fff;border-radius:20px;padding:2px 8px;font-size:11px;cursor:pointer;margin-left:7px;color:var(--muted)}

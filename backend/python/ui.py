@@ -587,7 +587,7 @@ def receipt_page(data, job_id):
     check_rows = "".join(
         f"<tr><td class='mono'>{escape(c['case_id'])}</td><td class='num'>{c['expected_cents']}</td>"
         f"<td class='num'>{c['observed_cents']}</td>"
-        f"<td><span class='pill {'ok' if c['passed'] else 'err'}'>{'PASSED' if c['passed'] else 'FAILED'}</span></td></tr>"
+        f"<td><span class='pill {'ok' if c['passed'] else 'warn'}'>{'OK' if c['passed'] else 'DEFECT FOUND'}</span></td></tr>"
         for c in checks if type(c) is dict)
     reasons = verification.get("reasons") or []
     reason_html = "".join(f"<li>{escape(r)}</li>" for r in reasons) or "<li>No discrepancies found.</li>"
@@ -667,7 +667,7 @@ def receipt_page(data, job_id):
 {_card("verify", "Verification", verification.get("scope", ""),
        f'''<div class="toolbar"><span class="pill {'ok' if verification['valid_delivery'] else 'warn'}">{'VALID DELIVERY' if verification['valid_delivery'] else 'NOT VERIFIED'}</span></div>
 <ul>{reason_html}</ul>
-{f"<h3 style='font-size:13px;margin:14px 0 0'>Cart checks</h3><div class='table-wrap'><table><tr><th>Case</th><th class='num'>Expected (cents)</th><th class='num'>Observed (cents)</th><th>Result</th></tr>{check_rows}</table></div>" if check_rows else ""}
+{f"<h3 style='font-size:13px;margin:14px 0 0'>Cart checks</h3><div class='table-wrap'><table><tr><th>Case</th><th class='num'>Expected (cents)</th><th class='num'>Observed (cents)</th><th>Result</th></tr>{check_rows}</table></div><p class='muted' style='margin-top:8px'>A defect found and reported with execution receipts is a valid audit delivery — the audit did its job.</p>" if check_rows else ""}
 <h3 style="font-size:13px;margin:14px 0 0">Execution receipts</h3><ul>{receipts}</ul>
 <p class="muted">Delivery SHA-256: <span class="mono">{escape(payment['result_sha256'] or '—')}</span></p>
 {delivery}''')}

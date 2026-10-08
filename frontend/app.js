@@ -959,6 +959,7 @@ const GUIDE_STEPS = [
   { sel: "#profile", title: "Your account", text: "Top up simulated coins, open transactions, or sign out." },
 ];
 let guideIndex = 0;
+let stripeEur = 1;
 
 function positionGuide() {
   const step = GUIDE_STEPS[guideIndex];
@@ -1002,6 +1003,64 @@ async function openTopUp() {
   $("profile-menu").hidden = true;
   $("topup-status").textContent = "";
   $("topup-dialog").showModal();
+}
+
+function setStripeEur(amount) {
+  stripeEur = amount;
+  document.querySelectorAll("#stripe-presets .eur").forEach((button) => button.classList.toggle("active", Number(button.dataset.eur) === amount));
+}
+
+async function payByCard() {
+  $("stripe-status").textContent = "Creating a Stripe test checkout…";
+  try {
+    const resp = await post("api/topup/stripe", { amount_eur: stripeEur });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.stripe || !data.stripe.checkout_url) {
+      $("stripe-status").textContent = (data.error || "Stripe checkout failed") + " (HTTP " + resp.status + ")";
+      return;
+    }
+    $("stripe-status").textContent = "Redirecting to Stripe test checkout…";
+    window.location.href = data.stripe.checkout_url;
+  } catch (error) {
+    $("stripe-status").textContent = "Stripe checkout failed: " + error.message;
+  }
+}
+
+async function sandboxCardPay() {
+  $("stripe-sandbox").disabled = true;
+  $("stripe-status").textContent = "Creating a Stripe test payment with the visa test card…";
+  try {
+    const resp = await post("api/topup/stripe/sandbox", { amount_eur: stripeEur });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { $("stripe-status").textContent = (data.error || "Stripe payment failed") + " (HTTP " + resp.status + ")"; return; }
+    const stripe = data.stripe || {};
+    if (data.user) applyAccount(data.user);
+    $("stripe-status").textContent = "Stripe test payment " + (stripe.stripe_reference || "") + " confirmed: +" + stripe.lux_coins + " Lux Coins (" + stripe.session_id + ").";
+    lastAuditRev = -1;
+  } catch (error) {
+    $("stripe-status").textContent = "Stripe payment failed: " + error.message;
+  } finally {
+    $("stripe-sandbox").disabled = false;
+  }
+}
+
+async function confirmStripeReturn(stripeId) {
+  try {
+    const resp = await post("api/topup/stripe/confirm", { stripe_session_id: stripeId });
+    const data = await resp.json().catch(() => ({}));
+    const stripe = data.stripe || {};
+    if (resp.ok && data.user) applyAccount(data.user);
+    if (resp.ok && stripe.credited) {
+      showNotice("Card payment confirmed (Stripe test): +" + stripe.lux_coins + " Lux Coins.");
+    } else if (resp.ok) {
+      showNotice("Stripe payment already credited (+" + stripe.lux_coins + " Lux Coins).");
+    } else {
+      showNotice((data.error || "Stripe confirmation failed") + " (HTTP " + resp.status + ")");
+    }
+    lastAuditRev = -1;
+  } catch (error) {
+    showNotice("Stripe confirmation failed: " + error.message);
+  }
 }
 
 async function submitTopUp() {
@@ -1049,6 +1108,14 @@ async function boot() {
       $("welcome-name").textContent = data.user.username;
       $("welcome-budget").textContent = data.user.budget;
       $("welcome-overlay").hidden = false;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe") === "ok" && params.get("sc")) {
+      await confirmStripeReturn(params.get("sc"));
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("stripe") === "cancel") {
+      showNotice("Card payment cancelled — nothing was charged.");
+      window.history.replaceState({}, "", window.location.pathname);
     }
   } catch {
     showAuth("Cannot reach the server.");
@@ -1240,6 +1307,9 @@ $("topup-submit").addEventListener("click", submitTopUp);
 document.querySelectorAll("#topup-presets button").forEach((button) => button.addEventListener("click", () => {
   $("topup-amount").value = button.dataset.amount;
 }));
+document.querySelectorAll("#stripe-presets .eur").forEach((button) => button.addEventListener("click", () => setStripeEur(Number(button.dataset.eur))));
+$("stripe-pay").addEventListener("click", payByCard);
+$("stripe-sandbox").addEventListener("click", sandboxCardPay);
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });

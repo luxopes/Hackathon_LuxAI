@@ -236,6 +236,17 @@ must **not** embed it.
   PAID | REFUNDED`, `contract`, `result`).
 * `GET /api/jobs/{id}/verify` → `{valid_delivery, reasons[], checks[]}` —
   structural verification against the agreed contract.
+* `POST /api/sessions/{id}/stripe-checkout` `{amount_eur}` → creates a Stripe
+  **test-mode** Checkout Session (1 EUR = 20 Lux Coins, 1–25 EUR) and returns
+  `{checkout_url, stripe_session_id, lux_coins}`. The card page is hosted by
+  Stripe; nothing is credited until `stripe-confirm`.
+* `POST /api/sessions/{id}/stripe-confirm` `{stripe_session_id}` → verifies the
+  payment with Stripe and credits the wallet **once** (idempotent by the Stripe
+  object id; a `STRIPE_TOPUP` row lands in the ledger).
+* `POST /api/sessions/{id}/stripe-sandbox-pay` `{amount_eur}` → server-side test
+  helper: creates and confirms a Stripe test payment with `pm_card_visa`
+  (test keys only). Used by the console's "Simulate card payment (test)" button
+  and by the automated tests.
 * `POST /api/jobs/{id}/settle` → pays the seller (`PAID`); refused with `409`
   for an invalid delivery.
 * `POST /api/jobs/{id}/refund` → returns escrow to the buyer (`REFUNDED`);

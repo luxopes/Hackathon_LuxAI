@@ -64,3 +64,6 @@ scripts/    local run/config helpers
 * The agent console serves the frontend from the same origin as its API — no
   CORS, no tokens in the browser.
 * Everything runs on loopback: marketplace 3070, sellers 3081–3085, console 3069.
+* Buyers can top up with a card through **Stripe in test mode** (Checkout); the
+  card payment is real in the sandbox, the coins it buys stay simulated and are
+  labelled as such everywhere.

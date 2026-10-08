@@ -46,6 +46,10 @@ class Market:
         apify_file = config.get("apify_token_file", "")
         self.apify_token = Path(apify_file).read_text().strip() if apify_file and Path(apify_file).is_file() else ""
         # Podpisový klíč pro doklady (Ed25519); bez něj se doklady jen nepodepisují.
+        stripe_file = config.get("stripe_key_file", "")
+        self.stripe_key = Path(stripe_file).read_text().strip() if stripe_file and Path(stripe_file).is_file() else ""
+        self.stripe_success_url = config.get("stripe_success_url", "https://api.lux-ai.cz/hackathon01/web/?stripe=ok")
+        self.stripe_cancel_url = config.get("stripe_cancel_url", "https://api.lux-ai.cz/hackathon01/web/?stripe=cancel")
         key_file = config.get("receipt_signing_key_file", "")
         self.signing_key_file = key_file
         self.signing_key_id = ""
@@ -77,6 +81,9 @@ class Market:
                     artifact_sha256 TEXT NOT NULL, model TEXT NOT NULL, created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS research_sources(job_id TEXT NOT NULL REFERENCES jobs(id), url TEXT NOT NULL,
                     title TEXT NOT NULL, extract TEXT NOT NULL, PRIMARY KEY(job_id,url));
+                CREATE TABLE IF NOT EXISTS stripe_payments(id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+                    lux_coins INTEGER NOT NULL, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL,
+                    kind TEXT NOT NULL, status TEXT NOT NULL, created REAL NOT NULL, credited REAL);
                 CREATE TABLE IF NOT EXISTS signatures(job_id TEXT PRIMARY KEY, alg TEXT NOT NULL,
                     public_key_id TEXT NOT NULL, signature TEXT NOT NULL, payload TEXT NOT NULL,
                     payload_sha256 TEXT NOT NULL, created REAL NOT NULL);
@@ -543,6 +550,111 @@ class Market:
         except (OSError, subprocess.SubprocessError, sqlite3.Error):
             return
 
+    # --- Stripe (test mode): karta dobije simulované Lux Coins; ledger zůstává jediné účetnictví.
+    STRIPE_EUR_TO_LC = 20
+    STRIPE_MIN_EUR = 1
+    STRIPE_MAX_EUR = 25
+
+    def stripe_request(self, method, path, params=None):
+        if not self.stripe_key:
+            raise Problem(503, "Stripe is not configured on this marketplace")
+        data = urlencode(params or {}).encode()
+        request = Request("https://api.stripe.com/v1/" + path, data=data if method == "POST" else None,
+                          headers={"Authorization": "Bearer " + self.stripe_key,
+                                   "Content-Type": "application/x-www-form-urlencoded"})
+        if method == "GET" and params:
+            request = Request("https://api.stripe.com/v1/" + path + "?" + urlencode(params),
+                              headers={"Authorization": "Bearer " + self.stripe_key})
+        try:
+            with urlopen(request, timeout=30) as response:
+                return json.loads(response.read(200_001))
+        except HTTPError as error:
+            detail = error.read(600).decode("utf-8", "replace")
+            try:
+                message = json.loads(detail).get("error", {}).get("message", detail)
+            except ValueError:
+                message = detail
+            raise Problem(502, "Stripe: " + message[:200])
+        except (URLError, OSError, ValueError):
+            raise Problem(502, "Stripe is unavailable")
+
+    def stripe_amount(self, amount_eur):
+        if type(amount_eur) is not int or not self.STRIPE_MIN_EUR <= amount_eur <= self.STRIPE_MAX_EUR:
+            raise Problem(400, f"card amount must be a whole number of euro from {self.STRIPE_MIN_EUR} to {self.STRIPE_MAX_EUR}")
+        return amount_eur * 100, amount_eur * self.STRIPE_EUR_TO_LC
+
+    def stripe_checkout(self, session_id, amount_eur):
+        cents, coins = self.stripe_amount(amount_eur)
+        with self.db() as db:
+            if not db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone():
+                raise Problem(404, "session not found")
+        created = self.stripe_request("POST", "checkout/sessions", {
+            "mode": "payment",
+            "success_url": self.stripe_success_url + "&sc={CHECKOUT_SESSION_ID}",
+            "cancel_url": self.stripe_cancel_url,
+            "client_reference_id": session_id,
+            "metadata[session_id]": session_id,
+            "metadata[lux_coins]": str(coins),
+            "line_items[0][quantity]": "1",
+            "line_items[0][price_data][currency]": "eur",
+            "line_items[0][price_data][unit_amount]": str(cents),
+            "line_items[0][price_data][product_data][name]": f"Lux Coins top-up (Stripe test): {coins} LC",
+        })
+        with self.transaction() as db:
+            db.execute("INSERT OR REPLACE INTO stripe_payments VALUES(?,?,?,?,?,?,?,?,NULL)",
+                       (created["id"], session_id, coins, cents, "eur", "checkout", created.get("status", "open"), time.time()))
+        return {"stripe_session_id": created["id"], "checkout_url": created.get("url", ""), "lux_coins": coins, "mode": "stripe-test"}
+
+    def stripe_sandbox_pay(self, session_id, amount_eur):
+        # Serverová testovací platba (jen s testovacím klíčem) – pro ověření a jako záloha dema.
+        if not self.stripe_key.startswith("sk_test_"):
+            raise Problem(409, "sandbox payments are only available with a test key")
+        cents, coins = self.stripe_amount(amount_eur)
+        with self.db() as db:
+            if not db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone():
+                raise Problem(404, "session not found")
+        intent = self.stripe_request("POST", "payment_intents", {
+            "amount": str(cents), "currency": "eur", "payment_method": "pm_card_visa", "confirm": "true",
+            "automatic_payment_methods[enabled]": "true", "automatic_payment_methods[allow_redirects]": "never",
+            "description": f"Lux Coins top-up (Stripe test): {coins} LC",
+            "metadata[session_id]": session_id, "metadata[lux_coins]": str(coins),
+        })
+        with self.transaction() as db:
+            db.execute("INSERT OR REPLACE INTO stripe_payments VALUES(?,?,?,?,?,?,?,?,NULL)",
+                       (intent["id"], session_id, coins, cents, "eur", "payment_intent", intent.get("status", "unknown"), time.time()))
+        return {"stripe_session_id": intent["id"], "lux_coins": coins, "status": intent.get("status"), "mode": "stripe-test"}
+
+    def stripe_confirm(self, stripe_id):
+        if type(stripe_id) is not str or not 1 <= len(stripe_id) <= 200:
+            raise Problem(400, "invalid Stripe payment id")
+        with self.db() as db:
+            row = db.execute("SELECT * FROM stripe_payments WHERE id = ?", (stripe_id,)).fetchone()
+        if not row:
+            raise Problem(404, "this Stripe payment is not known here")
+        if row["credited"]:
+            return {"credited": False, "reason": "already credited", "lux_coins": row["lux_coins"], "session_id": row["session_id"]}
+        if row["kind"] == "checkout":
+            remote = self.stripe_request("GET", "checkout/sessions/" + stripe_id, None)
+            paid = remote.get("payment_status") == "paid"
+            reference = remote.get("payment_intent") or stripe_id
+        else:
+            remote = self.stripe_request("GET", "payment_intents/" + stripe_id, None)
+            paid = remote.get("status") == "succeeded"
+            reference = stripe_id
+        if not paid:
+            raise Problem(409, "this Stripe payment is not completed yet")
+        with self.transaction() as db:
+            fresh = db.execute("SELECT * FROM stripe_payments WHERE id = ?", (stripe_id,)).fetchone()
+            if fresh["credited"]:
+                return {"credited": False, "reason": "already credited", "lux_coins": fresh["lux_coins"], "session_id": fresh["session_id"]}
+            session_id, coins = fresh["session_id"], fresh["lux_coins"]
+            db.execute("UPDATE wallets SET available = available + ? WHERE id = ?", (coins, session_id))
+            db.execute("UPDATE sessions SET budget = budget + ? WHERE id = ?", (coins, session_id))
+            self.record(db, session_id, None, "STRIPE_TOPUP", coins)
+            db.execute("UPDATE stripe_payments SET status = 'paid', credited = ? WHERE id = ?", (time.time(), stripe_id))
+        return {"credited": True, "lux_coins": coins, "session_id": session_id, "stripe_reference": reference,
+                "mode": "stripe-test", "payment": "card payment in Stripe test mode"}
+
     def top_up(self, session_id, amount):
         # Simulované dobití peněženky: nový řádek v ledgeru, žádná změna historie.
         if type(amount) is not int or not 1 <= amount <= 1000:
@@ -693,6 +805,7 @@ class Market:
     LEDGER_LABELS = {
         "LUX_COINS_ISSUED": ("Test credits issued to the buyer wallet", "issue"),
         "TOPUP_ISSUED": ("Wallet topped up with simulated Lux Coins", "issue"),
+        "STRIPE_TOPUP": ("Card payment in Stripe test mode credited as Lux Coins", "issue"),
         "ESCROW_LOCKED": ("Funds locked in escrow for the job", "escrow"),
         "RESULT_DELIVERED": ("Seller delivery recorded by the marketplace", "delivery"),
         "DELIVERY_FAILED": ("Seller delivery failed or was invalid", "failure"),
@@ -722,7 +835,7 @@ class Market:
         job_moves = []
         for row in ledger_rows:
             action, amount = row["action"], row["amount"]
-            if action == "LUX_COINS_ISSUED" or action == "TOPUP_ISSUED":
+            if action in ("LUX_COINS_ISSUED", "TOPUP_ISSUED", "STRIPE_TOPUP"):
                 available += amount
             elif action == "ESCROW_LOCKED":
                 available -= amount
@@ -910,6 +1023,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(201, market.create_session(payload))
             if path == "/api/jobs":
                 return self.send(201, market.buy(payload))
+            if path.startswith("/api/sessions/") and path.endswith("/stripe-checkout"):
+                session_id = path.removeprefix("/api/sessions/").removesuffix("/stripe-checkout")
+                return self.send(200, market.stripe_checkout(session_id, payload.get("amount_eur")))
+            if path.startswith("/api/sessions/") and path.endswith("/stripe-sandbox-pay"):
+                session_id = path.removeprefix("/api/sessions/").removesuffix("/stripe-sandbox-pay")
+                return self.send(200, market.stripe_sandbox_pay(session_id, payload.get("amount_eur")))
+            if path.startswith("/api/sessions/") and path.endswith("/stripe-confirm"):
+                return self.send(200, market.stripe_confirm(payload.get("stripe_session_id")))
             if path.startswith("/api/sessions/") and path.endswith("/topup"):
                 session_id = path.removeprefix("/api/sessions/").removesuffix("/topup")
                 amount = payload.get("amount")

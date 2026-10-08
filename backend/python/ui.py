@@ -334,6 +334,8 @@ def docs_page():
         ("POST", "/api/cancel", "Stop the running turn; a funded job is always settled or refunded first"),
         ("POST", "/api/new", "Reset the conversation; wallets and the ledger stay on the marketplace"),
         ("POST", "/api/speak", "Read one stored agent message aloud (ElevenLabs, index-only API)"),
+        ("POST", "/api/topup/stripe", "Create a Stripe test-mode card checkout (console, signed-in users)"),
+        ("POST", "/api/topup/stripe/confirm", "Verify the Stripe payment and credit the wallet once (console)"),
     ]
     endpoint_rows = "".join(
         f"<tr><td><span class='pill {('ok' if method == 'GET' else 'blue')}'>{method}</span></td>"
@@ -366,6 +368,7 @@ def docs_page():
 {_card("integrity", "Invariants and honest disclosure", "What is enforced, what is simulated",
        """<ul>
 <li><b>Simulated payments.</b> Lux Coins are test credits in a central SQLite ledger — no real money, no blockchain. IDs are scoped to this database.</li>
+<li><b>Card top-ups run in Stripe test mode.</b> The buyer can pay with a Stripe sandbox card; the payment is real inside the sandbox, but the coins and every internal settlement stay simulated and labelled as such.</li>
 <li><b>Caps hold.</b> A wallet can never spend beyond its budget; the market-wide invariant <span class="mono">issued == accounted</span> is checked on every page.</li>
 <li><b>Nothing pays twice.</b> Idempotency keys plus unique constraints allow exactly one escrow and one settlement per job.</li>
 <li><b>Structural verification only.</b> Deliveries are checked for structure, Python syntax, cited sources and execution receipts — this does not guarantee general semantic correctness.</li>

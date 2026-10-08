@@ -6,6 +6,7 @@
 load chat_core as agent
 load buyer_core as buyer
 load httpserver as web
+load process
 load env
 load fd
 load json
@@ -24,10 +25,156 @@ running.append(0)
 # Chat a stav jsou měněny pouze pod zámkem; pracovní vlákno píše přes progress.
 chat = agent.conversation()
 greeting = "Type what you want done. I will fetch the current offers, pick a seller and buy the service within budget. If no one offers it, I will tell you why.\nYou can also ask: What is on offer right now?"
-state = {"messages": [{"role": "Agent", "content": greeting}], "wallet": None, "budget": None, "status": "Ready", "busy": False, "tools": [], "payments": [], "messages_revision": 0, "audit_revision": 0}
-work = {"kind": "", "prompt": ""}
+state = {"messages": [{"role": "Agent", "content": greeting}], "wallet": None, "budget": None, "status": "Ready", "busy": False, "tools": [], "payments": [], "notifications": [], "notification_seq": 0, "messages_revision": 0, "audit_revision": 0, "notifications_revision": 0}
+work = {"kind": "", "prompt": "", "budget": 0}
 streams = {}
 guard = {"last_chat": 0.0}
+# Skalární přiřazení uvnitř funkce stíní globál; držák to obchází.
+budget_holder = {"value": 0}
+users = {"list": [], "tokens": {}}
+users_file = "/var/lib/proofpay-mvp/users.json"
+
+# ---------- účty: registrace, přihlášení, dobití ----------
+# Hesla hashuje openssl (SHA-512 crypt); LSL nereimplementuje kryptografii.
+function openssl_text(arguments, input_text=None):
+    if input_text == None:
+        outcome = process.capture_result("/usr/bin/openssl", arguments)
+    else:
+        outcome = process.capture_input_result("/usr/bin/openssl", arguments, input_text)
+    end
+    if not outcome["ok"]:
+        return ""
+    end
+    return String(outcome["stdout"]).strip()
+end
+
+function users_load():
+    try:
+        raw = readfile(users_file)
+    else:
+        return
+    end
+    try:
+        data = json.decode(raw)
+    else:
+        return
+    end
+    if type(data) == "Dictionary":
+        users["list"] = data.get("list", [])
+        users["tokens"] = data.get("tokens", {})
+    end
+end
+
+function users_save():
+    try:
+        call writefile(users_file, json.encode(users) + chr(10))
+    else:
+        call time.time()
+    end
+end
+
+function user_find(name):
+    wanted = String(name).strip().lower()
+    for user in users["list"]:
+        if String(user.get("username", "")) == wanted:
+            return user
+        end
+    end
+    return None
+end
+
+function valid_username(name):
+    if len(name) < 3 or len(name) > 24:
+        return False
+    end
+    for character in name:
+        code = ord(character)
+        allowed = (code >= 97 and code <= 122) or (code >= 48 and code <= 57) or character == "_" or character == "-"
+        if not allowed:
+            return False
+        end
+    end
+    return True
+end
+
+function token_issue(username):
+    token = openssl_text(["rand", "-hex", "24"], None)
+    if len(token) < 32:
+        Error(ServerError: "token generation failed")
+    end
+    users["tokens"][token] = username
+    call users_save()
+    return token
+end
+
+function authenticated(request):
+    header = String(request["headers"].get("authorization", "")).strip()
+    if not header.startswith("Bearer "):
+        return ""
+    end
+    token = header[7:len(header)].strip()
+    if token == "":
+        return ""
+    end
+    return String(users["tokens"].get(token, ""))
+end
+
+function token_of(request):
+    header = String(request["headers"].get("authorization", "")).strip()
+    if not header.startswith("Bearer "):
+        return ""
+    end
+    return header[7:len(header)].strip()
+end
+
+# Peněženka pro platbu kartou: použije stávající session, jinak založí novou.
+function ensure_session():
+    call lock()
+    current = chat["session_id"]
+    call unlock()
+    if current != "":
+        return current
+    end
+    created = buyer.api(config, "POST", "/api/sessions", {"title": "Wallet top-up", "budget": 1,
+        "fixture": config.get("fixture", "buggy"), "service": "auto"})
+    call lock()
+    chat["session_id"] = created["id"]
+    state["wallet"] = created["wallet"]
+    state["budget"] = created["budget"]
+    call unlock()
+    return created["id"]
+end
+
+function credit_card_topup(who, session_id, outcome):
+    # Zapíše připsané Lux Coins do účtu i stavu; volat jen když Stripe potvrdil platbu.
+    call lock()
+    state["wallet"] = buyer.api(config, "GET", "/api/sessions/" + session_id, None)["wallet"]
+    call unlock()
+    for index in rang(len(users["list"])):
+        if String(users["list"][index].get("username", "")) == who:
+            users["list"][index]["budget"] = Int(users["list"][index].get("budget", 0)) + Int(outcome["lux_coins"])
+            budget_holder["value"] = users["list"][index]["budget"]
+        end
+    end
+    call users_save()
+    call lock()
+    call add_notification("info", "Card payment confirmed (Stripe test): +" + String(outcome["lux_coins"]) + " Lux Coins", "")
+    call unlock()
+end
+
+function user_budget(username):
+    for user in users["list"]:
+        if String(user.get("username", "")) == username:
+            return Int(user.get("budget", 0))
+        end
+    end
+    return 0
+end
+
+function user_public(user):
+    return {"username": user.get("username", ""), "budget": user.get("budget", 0),
+            "welcome_seen": user.get("welcome_seen", False), "created": user.get("created", 0)}
+end
 settings = {"port": 3069, "web_dir": "", "root": -1}
 config = {}
 
@@ -40,6 +187,17 @@ end
 function unlock():
     call atomic_add(flags, 3, 1)
     call atomic_xchg(flags, 0, 0)
+end
+
+# Notifikace pro zvonek: platby, refundace a dokončené tahy. Vždy pod zámkem.
+function add_notification(kind, text, job_id):
+    state["notification_seq"] += 1
+    state["notifications"].append({"id": "n-" + String(state["notification_seq"]), "kind": kind,
+        "text": text, "job_id": job_id, "time": time.time()})
+    if len(state["notifications"]) > 20:
+        state["notifications"] = state["notifications"][len(state["notifications"]) - 20:]
+    end
+    state["notifications_revision"] += 1
 end
 
 function append_message(role, text):
@@ -219,8 +377,10 @@ function progress(event):
         state["wallet"]["available"] += data["amount"]
         state["wallet"]["locked"] -= data["amount"]
         call append_message("Agent", "Delivery did not meet the contract. " + String(data["amount"]) + " Lux Coins refunded; selecting another seller.")
+        call add_notification("refund", String(data["amount"]) + " Lux Coins refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
     elif action == "PAYMENT_RELEASED":
         state["wallet"]["locked"] -= data["amount"]
+        call add_notification("paid", String(data["amount"]) + " Lux Coins paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
     elif action == "SESSION_CREATED":
         state["budget"] = data["budget"]
     elif action == "CHAT_DECISION":
@@ -242,12 +402,17 @@ function worker():
             end
             call lock()
             call append_message("Agent", text)
+            call add_notification("info", "Catalog refreshed: " + String(len(catalog["offers"])) + " active offers", "")
             state["status"] = "Catalog refreshed"
             state["busy"] = False
             call trim_state()
             call unlock()
         else:
-            report = agent.turn(config, chat, work["prompt"], progress, cancel_requested)
+            turn_config = json.decode(json.encode(config))
+            if work["budget"] > 0:
+                turn_config["budget"] = work["budget"]
+            end
+            report = agent.turn(turn_config, chat, work["prompt"], progress, cancel_requested)
             call lock()
             if state["messages"][len(state["messages"]) - 1]["content"] != report["reply"]:
                 call append_message("Agent", report["reply"])
@@ -264,6 +429,7 @@ function worker():
         # Syrové chyby API nevypisujeme kvůli možným citlivým údajům.
         call lock()
         call append_message("Agent", "The request could not be completed. Check the connection and try again. If a purchase was already in progress, its state is on the marketplace.")
+        call add_notification("error", "A task could not be completed — nothing was paid", "")
         state["status"] = "Connection or agent-decision error"
         state["busy"] = False
         call unlock()
@@ -278,6 +444,7 @@ function start(kind, prompt):
     call atomic_xchg(flags, 2, 0)
     work["kind"] = kind
     work["prompt"] = prompt
+    work["budget"] = budget_holder["value"]
     call lock()
     state["busy"] = True
     state["status"] = "Fetching the current offers…"
@@ -311,6 +478,7 @@ function snapshot(lite=False):
     messages = []
     tools = []
     payments = []
+    notifications = []
     if not lite:
         for message in state["messages"]:
             messages.append({"role": message["role"], "content": message["content"]})
@@ -321,12 +489,15 @@ function snapshot(lite=False):
         for entry in state["payments"]:
             payments.append(entry)
         end
+        for entry in state["notifications"]:
+            notifications.append(entry)
+        end
     end
     wallet = None
     if state["wallet"] != None:
         wallet = {"available": state["wallet"]["available"], "locked": state["wallet"]["locked"]}
     end
-    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "time": time.time()}
+    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
     call atomic_xchg(flags, 0, 0)
     return view
 end
@@ -402,6 +573,7 @@ function reset_conversation():
 end
 
 function route(client, request):
+    who = ""
     method = request["method"]
     raw = String(request["target"])
     query = raw.find("?")
@@ -417,6 +589,229 @@ function route(client, request):
         call send_json(client, 200, {"ok": True, "payments": "simulated Lux Coins"})
         return
     end
+    # --- účty: registrace a přihlášení (bez tokenu) ---
+    if method == "POST" and (target == "/api/register" or target == "/api/login"):
+        payload = None
+        if type(request.get("body_text", None)) == "String":
+            try:
+                payload = json.decode(request["body_text"])
+            else:
+                payload = None
+            end
+        end
+        if type(payload) != "Dictionary":
+            call send_error_json(client, 400, "JSON object with username and password is required")
+            return
+        end
+        username = String(payload.get("username", "")).strip().lower()
+        password = String(payload.get("password", ""))
+        if target == "/api/register":
+            if not valid_username(username):
+                call send_error_json(client, 400, "username must be 3-24 characters: a-z, 0-9, _ or -")
+                return
+            end
+            if len(password) < 8 or len(password) > 128:
+                call send_error_json(client, 400, "password must have 8 to 128 characters")
+                return
+            end
+            if user_find(username) != None:
+                call send_error_json(client, 409, "this username is already taken")
+                return
+            end
+            salt = openssl_text(["rand", "-hex", "8"], None)
+            digest = openssl_text(["passwd", "-6", "-salt", salt, "-stdin"], password + chr(10))
+            if digest == "":
+                call send_error_json(client, 500, "cannot hash the password right now")
+                return
+            end
+            user = {"username": username, "hash": digest, "created": time.time(),
+                    "budget": Int(config.get("budget", 30)), "welcome_seen": False}
+            users["list"].append(user)
+            token = token_issue(username)
+            call send_json(client, 201, {"token": token, "user": user_public(user)})
+            return
+        end
+        user = user_find(username)
+        if user == None or len(password) == 0:
+            call send_error_json(client, 401, "invalid username or password")
+            return
+        end
+        parts = String(user["hash"]).split("$")
+        if len(parts) < 4:
+            call send_error_json(client, 401, "invalid username or password")
+            return
+        end
+        digest = openssl_text(["passwd", "-6", "-salt", String(parts[2]), "-stdin"], password + chr(10))
+        if digest == "" or digest != String(user["hash"]):
+            call send_error_json(client, 401, "invalid username or password")
+            return
+        end
+        token = token_issue(username)
+        call send_json(client, 200, {"token": token, "user": user_public(user)})
+        return
+    end
+    if method == "GET" and target == "/api/me":
+        who = authenticated(request)
+        if who == "":
+            call send_error_json(client, 401, "sign in first")
+            return
+        end
+        user = user_find(who)
+        if user == None:
+            call send_error_json(client, 401, "unknown account")
+            return
+        end
+        call send_json(client, 200, {"user": user_public(user)})
+        return
+    end
+    if method == "POST" and (target == "/api/logout" or target == "/api/welcome-seen" or target == "/api/topup"
+            or target == "/api/topup/stripe" or target == "/api/topup/stripe/confirm" or target == "/api/topup/stripe/sandbox"
+            or target == "/api/chat" or target == "/api/catalog" or target == "/api/cancel" or target == "/api/new"):
+        who = authenticated(request)
+        if who == "":
+            call send_error_json(client, 401, "sign in first")
+            return
+        end
+        if target == "/api/logout":
+            token = token_of(request)
+            if token != "" and token in users["tokens"]:
+                users["tokens"].pop(token)
+                call users_save()
+            end
+            call send_json(client, 200, {"ok": True})
+            return
+        end
+        if target == "/api/welcome-seen":
+            for index in rang(len(users["list"])):
+                if String(users["list"][index].get("username", "")) == who:
+                    users["list"][index]["welcome_seen"] = True
+                end
+            end
+            call users_save()
+            call send_json(client, 200, {"ok": True})
+            return
+        end
+        if target == "/api/topup/stripe" or target == "/api/topup/stripe/confirm" or target == "/api/topup/stripe/sandbox":
+            payload = None
+            if type(request.get("body_text", None)) == "String":
+                try:
+                    payload = json.decode(request["body_text"])
+                else:
+                    payload = None
+                end
+            end
+            if busy_now():
+                call send_error_json(client, 409, "The agent is still working; wait for it to finish.")
+                return
+            end
+            if target == "/api/topup/stripe/confirm":
+                stripe_id = None
+                if type(payload) == "Dictionary":
+                    stripe_id = payload.get("stripe_session_id")
+                end
+                if type(stripe_id) != "String" or len(stripe_id) < 6:
+                    call send_error_json(client, 400, "stripe_session_id is required")
+                    return
+                end
+                try:
+                    outcome = buyer.api(config, "POST", "/api/sessions/card/stripe-confirm", {"stripe_session_id": stripe_id})
+                else:
+                    call send_error_json(client, 502, "Stripe confirmation failed")
+                    return
+                end
+                if outcome.get("credited", False):
+                    call credit_card_topup(who, String(outcome["session_id"]), outcome)
+                end
+                call send_json(client, 200, {"stripe": outcome, "user": user_public(user_find(who)), "wallet": state["wallet"]})
+                return
+            end
+            amount_eur = None
+            if type(payload) == "Dictionary":
+                amount_eur = payload.get("amount_eur")
+            end
+            if type(amount_eur) != "Int" or amount_eur < 1 or amount_eur > 25:
+                call send_error_json(client, 400, "card amount must be a whole number of euro from 1 to 25")
+                return
+            end
+            session_id = ensure_session()
+            if target == "/api/topup/stripe/sandbox":
+                try:
+                    payment = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-sandbox-pay", {"amount_eur": amount_eur})
+                    outcome = buyer.api(config, "POST", "/api/sessions/card/stripe-confirm", {"stripe_session_id": payment["stripe_session_id"]})
+                else:
+                    call send_error_json(client, 502, "Stripe request failed")
+                    return
+                end
+                if outcome.get("credited", False):
+                    call credit_card_topup(who, session_id, outcome)
+                end
+                call send_json(client, 200, {"stripe": outcome, "user": user_public(user_find(who)), "wallet": state["wallet"]})
+                return
+            end
+            try:
+                checkout = buyer.api(config, "POST", "/api/sessions/" + session_id + "/stripe-checkout", {"amount_eur": amount_eur})
+            else:
+                call send_error_json(client, 502, "Stripe checkout failed")
+                return
+            end
+            call send_json(client, 200, {"stripe": checkout, "user": user_public(user_find(who))})
+            return
+        end
+        if target == "/api/topup":
+            payload = None
+            if type(request.get("body_text", None)) == "String":
+                try:
+                    payload = json.decode(request["body_text"])
+                else:
+                    payload = None
+                end
+            end
+            amount = None
+            if type(payload) == "Dictionary":
+                amount = payload.get("amount")
+            end
+            if type(amount) != "Int" or amount < 1 or amount > 500:
+                call send_error_json(client, 400, "top-up amount must be a whole number from 1 to 500 Lux Coins")
+                return
+            end
+            if busy_now():
+                call send_error_json(client, 409, "The agent is still working; wait for it to finish.")
+                return
+            end
+            new_budget = 0
+            for index in rang(len(users["list"])):
+                if String(users["list"][index].get("username", "")) == who:
+                    users["list"][index]["budget"] = Int(users["list"][index].get("budget", 0)) + amount
+                    new_budget = users["list"][index]["budget"]
+                end
+            end
+            call users_save()
+            budget_holder["value"] = new_budget
+            wallet = None
+            call lock()
+            session_id = chat["session_id"]
+            call unlock()
+            if session_id != "":
+                try:
+                    topped = buyer.api(config, "POST", "/api/sessions/" + session_id + "/topup", {"amount": amount})
+                else:
+                    topped = None
+                end
+                if topped != None:
+                    wallet = topped["wallet"]
+                    call lock()
+                    state["wallet"] = wallet
+                    call unlock()
+                end
+            end
+            call lock()
+            call add_notification("info", "Account topped up: +" + String(amount) + " Lux Coins (budget " + String(new_budget) + ")", "")
+            call unlock()
+            call send_json(client, 200, {"user": user_public(user_find(who)), "wallet": wallet})
+            return
+        end
+    end
+
     if method == "POST" and (target == "/api/chat" or target == "/api/catalog" or target == "/api/cancel" or target == "/api/new"):
         if target == "/api/cancel":
             call atomic_xchg(flags, 2, 1)
@@ -464,8 +859,9 @@ function route(client, request):
             return
         end
         guard["last_chat"] = time.time()
+        budget_holder["value"] = user_budget(who)
         call start("turn", message)
-        call send_json(client, 200, {"ok": True})
+        call send_json(client, 200, {"ok": True, "account": who, "budget": budget_holder["value"]})
         return
     end
     if method == "GET" or method == "HEAD":
@@ -520,6 +916,8 @@ if len(config["market_token"]) < 32 or len(config["ai_token"]) < 8:
     Error(ConfigError: "Market or AI token file does not contain a usable key")
 end
 state["budget"] = config["budget"]
+users_file = env.get("PROOFPAY_USERS_FILE", users_file)
+call users_load()
 try:
     call serve()
 else:

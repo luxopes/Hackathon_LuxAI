@@ -859,6 +859,12 @@ let authMode = "login";
 
 function setAuthMode(mode) {
   authMode = mode;
+  const form = $("auth-form");
+  if (form) {
+    form.style.animation = "none";
+    void form.offsetHeight;
+    form.style.animation = "";
+  }
   document.querySelectorAll(".auth-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === mode));
   $("auth-submit").textContent = mode === "register" ? "Create account" : "Sign in";
   $("auth-password").setAttribute("autocomplete", mode === "register" ? "new-password" : "current-password");
@@ -871,7 +877,24 @@ function showAuth(message) {
   $("auth-username").focus();
 }
 
-function hideAuth() { $("auth-overlay").hidden = true; }
+function hideAuth() {
+  const overlay = $("auth-overlay");
+  if (overlay.hidden || overlay.classList.contains("closing")) return;
+  overlay.classList.add("closing");
+  setTimeout(() => {
+    overlay.hidden = true;
+    overlay.classList.remove("closing");
+  }, 300);
+}
+
+function hideWelcome() {
+  const overlay = $("welcome-overlay");
+  overlay.classList.add("closing");
+  setTimeout(() => {
+    overlay.hidden = true;
+    overlay.classList.remove("closing");
+  }, 300);
+}
 
 function applyAccount(user) {
   account = user;
@@ -922,9 +945,9 @@ async function markWelcomeSeen() {
 }
 
 function closeWelcome(withGuide) {
-  $("welcome-overlay").hidden = true;
+  hideWelcome();
   markWelcomeSeen();
-  if (withGuide) startGuide();
+  if (withGuide) setTimeout(startGuide, 260);
 }
 
 const GUIDE_STEPS = [
@@ -1004,6 +1027,13 @@ async function signOut() {
   try { await post("api/logout"); } catch { /* ignore */ }
   localStorage.removeItem("lux_token");
   account = null;
+  const overlay = $("auth-overlay");
+  overlay.classList.remove("closing");
+  overlay.hidden = false;
+  const form = $("auth-form");
+  form.style.animation = "none";
+  void form.offsetHeight;
+  form.style.animation = "";
   showAuth("Signed out.");
 }
 

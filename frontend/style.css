@@ -321,7 +321,12 @@ button.mic:disabled{opacity:.6}
 /* ---------- accounts, welcome, guide, top-up ---------- */
 .auth-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#f7f9fc,#e8eef7);display:grid;place-items:center;z-index:200;padding:20px}
 .auth-overlay[hidden]{display:none}
-.auth-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(16,24,40,.14);padding:30px;width:min(420px,100%)}
+.auth-overlay{transition:opacity .3s ease, background .3s ease}
+.auth-overlay.closing{opacity:0;background:rgba(247,249,252,0)}
+.auth-overlay.closing .auth-card{transform:translateY(-10px) scale(.97);transition:transform .3s ease}
+.auth-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(16,24,40,.14);padding:30px;width:min(420px,100%);transition:transform .3s ease}
+#auth-form{animation:auth-swap .3s ease}
+@keyframes auth-swap{from{opacity:.25;transform:translateY(7px)}to{opacity:1;transform:none}}
 .auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
 .auth-brand .mark{width:38px;height:38px;border-radius:11px;background:var(--ink);display:grid;place-items:center;flex:none}
 .auth-brand .mark svg{width:20px;height:20px;color:#fff}
@@ -332,8 +337,11 @@ button.mic:disabled{opacity:.6}
 .auth-tab.active{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.08)}
 .auth-error{color:#bf384d;font-size:12px;min-height:16px;margin:0 0 10px}
 .auth-note{color:var(--muted);font-size:11.5px;margin-top:14px;text-align:center;line-height:1.5}
-.welcome-overlay{position:fixed;inset:0;overflow:hidden;background:rgba(10,14,20,.60);backdrop-filter:blur(7px);display:grid;place-items:center;z-index:210;padding:20px}
+.welcome-overlay{position:fixed;inset:0;overflow:hidden;background:rgba(10,14,20,.60);backdrop-filter:blur(7px);display:grid;place-items:center;z-index:210;padding:20px;animation:welcome-fade .45s ease both;transition:opacity .3s ease}
+@keyframes welcome-fade{from{background:rgba(10,14,20,0);backdrop-filter:blur(0)}to{background:rgba(10,14,20,.60);backdrop-filter:blur(7px)}}
 .welcome-overlay[hidden]{display:none}
+.welcome-overlay.closing{opacity:0}
+.welcome-overlay.closing .welcome-card{transform:translateY(-8px) scale(.97)}
 /* pomalé barevné přechody pod kartou */
 .welcome-overlay:before{content:"";position:absolute;left:50%;top:50%;width:150vmax;height:150vmax;margin:-75vmax;
   background:conic-gradient(from 0deg,#7ef0b0,#6fa8ff,#c9a5ff,#ffd27a,#7ef0b0);

@@ -15,6 +15,113 @@ let autoQueue = [];
 let autoNextAt = 0;
 let autoTotal = 0;
 
+/* ---------- ElevenLabs speech (voice of the agent) ---------- */
+let audioPlayer = null;
+let speakIndex = -1;
+let speakPhase = "idle";
+let autoVoice = localStorage.getItem("autoVoice") === "1";
+let lastSpokenContent = "";
+let previousBusy = false;
+let noticeUntil = 0;
+
+function showNotice(text, ms = 5000) {
+  $("status-line").textContent = text;
+  noticeUntil = Date.now() + ms;
+}
+
+function refreshSpeakButtons() {
+  document.querySelectorAll(".speak").forEach((btn) => {
+    const index = Number(btn.dataset.index);
+    if (index !== speakIndex) {
+      btn.textContent = "🔊";
+      btn.disabled = false;
+      btn.classList.remove("active");
+      return;
+    }
+    btn.classList.toggle("active", speakPhase !== "idle");
+    btn.textContent = speakPhase === "loading" ? "…" : speakPhase === "playing" ? "⏹" : speakPhase === "ready" ? "▶" : "🔊";
+    btn.disabled = speakPhase === "loading";
+  });
+}
+
+function stopSpeech() {
+  if (audioPlayer) {
+    audioPlayer.pause();
+    audioPlayer = null;
+  }
+  speakIndex = -1;
+  speakPhase = "idle";
+  refreshSpeakButtons();
+}
+
+async function speakMessage(index) {
+  // A second click on a ready message plays the already fetched audio
+  // (browsers drop the user activation while the first synthesis runs).
+  if (speakIndex === index && speakPhase === "ready" && audioPlayer) {
+    try {
+      await audioPlayer.play();
+      speakPhase = "playing";
+      refreshSpeakButtons();
+    } catch { /* stays ready */ }
+    return;
+  }
+  if (speakIndex === index && speakPhase === "playing") {
+    stopSpeech();
+    return;
+  }
+  stopSpeech();
+  speakIndex = index;
+  speakPhase = "loading";
+  refreshSpeakButtons();
+  try {
+    const resp = await fetch("api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      stopSpeech();
+      showNotice("🔊 " + (err.error || "Text-to-speech failed") + " (HTTP " + resp.status + ")");
+      return;
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    audioPlayer = new Audio(url);
+    audioPlayer.addEventListener("ended", () => { URL.revokeObjectURL(url); stopSpeech(); });
+    audioPlayer.addEventListener("error", () => { URL.revokeObjectURL(url); stopSpeech(); });
+    try {
+      await audioPlayer.play();
+      speakPhase = "playing";
+    } catch (error) {
+      if (error && error.name === "NotAllowedError") {
+        speakPhase = "ready";
+        showNotice("🔊 Browser blocked autoplay — click ▶ to play.");
+      } else {
+        throw error;
+      }
+    }
+    refreshSpeakButtons();
+  } catch {
+    stopSpeech();
+    showNotice("🔊 Text-to-speech failed");
+  }
+}
+
+async function autoSpeakIfEnabled() {
+  if (!autoVoice) return;
+  try {
+    const full = await (await fetch("api/state?t=" + Date.now())).json();
+    if (!full || full.ok !== true || full.busy || !full.messages || !full.messages.length) return;
+    fullState = full;
+    latest = full;
+    const last = full.messages[full.messages.length - 1];
+    if (last.role !== "Agent" || last.content.length < 40 || last.content === lastSpokenContent) return;
+    lastSpokenContent = last.content;
+    speakMessage(full.messages.length - 1);
+  } catch { /* speech is optional; polling keeps running */ }
+}
+
 /* ---------- message text formatting ---------- */
 function linkify(text) {
   return esc(text).replace(/(https?:\/\/[^\s<>")]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
@@ -57,7 +164,7 @@ function renderChat(messages) {
   const box = $("messages");
   const pinned = box.scrollTop + box.clientHeight >= box.scrollHeight - 80;
   box.replaceChildren();
-  for (const m of messages) {
+  for (const [index, m] of messages.entries()) {
     const wrap = document.createElement("div");
     wrap.className = "msg " + (m.role === "You" ? "user" : "agent");
     const role = document.createElement("div");
@@ -66,10 +173,20 @@ function renderChat(messages) {
     const body = document.createElement("div");
     body.className = "body";
     body.append(...renderBody(m.content));
+    if (m.role !== "You" && m.content.trim().length > 20) {
+      const speak = document.createElement("button");
+      speak.className = "speak";
+      speak.dataset.index = String(index);
+      speak.title = "Read aloud with ElevenLabs";
+      speak.textContent = "🔊";
+      speak.addEventListener("click", () => speakMessage(index));
+      body.append(speak);
+    }
     wrap.append(role, body);
     box.append(wrap);
   }
   if (pinned) box.scrollTop = box.scrollHeight;
+  refreshSpeakButtons();
 }
 
 /* ---------- right panel ---------- */
@@ -248,8 +365,10 @@ function renderTopbar(st) {
   }
   dot.className = "dot " + (st.busy ? "busy" : "ok");
   const line = $("status-line");
-  line.textContent = (st.busy ? "⟳ " : "") + st.status;
-  line.className = st.busy ? "busy" : "";
+  if (Date.now() >= noticeUntil) {
+    line.textContent = (st.busy ? "⟳ " : "") + st.status;
+    line.className = st.busy ? "busy" : "";
+  }
   $("btn-send").disabled = st.busy;
   $("btn-catalog").disabled = st.busy;
   $("btn-auto").disabled = st.busy || autoQueue.length > 0;
@@ -269,7 +388,7 @@ async function sendMessage(text) {
   const resp = await post("api/chat", { message: text });
   if (resp.status === 200) return true;
   const err = await resp.json().catch(() => ({}));
-  $("status-line").textContent = (err.error || "Error") + " · HTTP " + resp.status;
+  showNotice((err.error || "Error") + " · HTTP " + resp.status);
   return false;
 }
 
@@ -277,13 +396,13 @@ async function send() {
   const text = $("input").value.trim();
   if (!text) return;
   if (latest && latest.busy) {
-    $("status-line").textContent = "The agent is still working. Send the message after it finishes.";
+    showNotice("The agent is still working. Send the message after it finishes.");
     return;
   }
   try {
     if (await sendMessage(text)) $("input").value = "";
   } catch {
-    $("status-line").textContent = "Request failed — check the connection.";
+    showNotice("Request failed — check the connection.");
   }
 }
 
@@ -296,10 +415,10 @@ async function refreshCatalog() {
     const resp = await post("api/catalog");
     if (resp.status !== 200) {
       const err = await resp.json().catch(() => ({}));
-      $("status-line").textContent = (err.error || "Error") + " · HTTP " + resp.status;
+      showNotice((err.error || "Error") + " · HTTP " + resp.status);
     }
   } catch {
-    $("status-line").textContent = "Request failed — check the connection.";
+    showNotice("Request failed — check the connection.");
   }
 }
 
@@ -381,11 +500,14 @@ async function poll() {
         $("cnt-payments").textContent = full.payment_count;
       }
     }
+    // Auto voice: speak the finished reply once per turn (needs the full state).
+    if (previousBusy && !st.busy) autoSpeakIfEnabled();
+    previousBusy = st.busy;
     autoTick(latest);
   } catch (e) {
     $("conn-dot").className = "dot err";
     $("conn-status").textContent = "Connection failed";
-    $("status-line").textContent = "Server unavailable: " + e.message;
+    showNotice("Server unavailable: " + e.message);
   }
   setTimeout(poll, 500);
 }
@@ -408,6 +530,13 @@ $("input").addEventListener("keydown", (e) => {
     e.preventDefault();
     send();
   }
+});
+const voiceBox = $("chk-voice");
+voiceBox.checked = autoVoice;
+voiceBox.addEventListener("change", () => {
+  autoVoice = voiceBox.checked;
+  localStorage.setItem("autoVoice", autoVoice ? "1" : "0");
+  if (!autoVoice) stopSpeech();
 });
 $("input").focus();
 poll();

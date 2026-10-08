@@ -1,0 +1,23 @@
+[Unit]
+Description=ProofPay speech sidecar (ElevenLabs TTS)
+After=network.target proofpay-web.service
+
+[Service]
+User=proofpay
+Group=proofpay
+WorkingDirectory=/opt/proofpay-mvp
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/proofpay-mvp
+UMask=0077
+CPUQuota=50%
+TasksMax=32
+MemoryMax=128M
+ExecStart=/usr/bin/python3 /opt/proofpay-mvp/tts.py
+
+[Install]
+WantedBy=multi-user.target

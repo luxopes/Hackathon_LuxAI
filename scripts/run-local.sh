@@ -38,6 +38,17 @@ for s in partial complete scout insight atlas; do
 done
 start console env PROOFPAY_CHAT_CONFIG="$CFG/chat.env" "$BUILD/web-server"
 
+# Optional speech sidecar (ElevenLabs). Without a key it is skipped and the
+# frontend's speak button reports that speech is not configured.
+KEY="${ELEVENLABS_KEY_FILE:-$HOME/.config/elevenlabs/key}"
+if [ -f "$KEY" ]; then
+  start tts env ELEVENLABS_KEY_FILE="$KEY" TTS_CACHE_DIR="$STATE/data/tts" \
+    TTS_CONSOLE_URL="http://127.0.0.1:3069" TTS_PORT=3071 \
+    python3 "$ROOT/backend/python/tts.py"
+else
+  echo "   tts skipped (no key at $KEY)"
+fi
+
 wait_for() { # <url> <label>
   for _ in $(seq 1 60); do
     if curl -sf -o /dev/null "$1"; then echo "   $2 ready"; return 0; fi
@@ -51,12 +62,16 @@ echo "== health checks"
 wait_for http://127.0.0.1:3070/health market
 for p in 3081 3082 3083 3084 3085; do wait_for "http://127.0.0.1:$p/health" "seller-$p"; done
 wait_for http://127.0.0.1:3069/api/health console
+if [ -f "${ELEVENLABS_KEY_FILE:-$HOME/.config/elevenlabs/key}" ]; then
+  wait_for http://127.0.0.1:3071/health tts
+fi
 
 cat <<EOF
 
 Ready.
   Agent console (frontend + API):  http://127.0.0.1:3069/
   Marketplace dashboard:           http://127.0.0.1:3070/
+  Speech sidecar (optional):       http://127.0.0.1:3071/health
   Logs: $LOGS
   Stop: scripts/stop-local.sh
 

@@ -116,6 +116,30 @@ main {
   margin: 8px 0;
 }
 .msg .body a { color: var(--accent); }
+button.speak {
+  display: inline-block;
+  margin: 0 0 0 8px;
+  padding: 2px 9px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: #1c2740;
+  border: 1px solid #35466a;
+  border-radius: 20px;
+  vertical-align: middle;
+}
+button.speak:hover { background: #24345a; }
+button.speak.active { border-color: var(--green); color: var(--green); }
+label.auto-voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+label.auto-voice input { accent-color: #4a6ea8; }
 .msg .body .line { display: block; }
 .msg .body .ok-line { color: var(--green); }
 .msg .body .bad-line { color: var(--red); }

@@ -47,6 +47,7 @@ backend/
   lsl/service_menu.lsl        service descriptions/limits used in prompts
   deploy/                     systemd units, Caddyfile snippet, *.example configs
   static/dashboard.html       public read-only marketplace overview
+  python/tts.py               speech sidecar (ElevenLabs, message-index API)
 ```
 
 ## Run it (from zero)
@@ -79,6 +80,7 @@ without a key; chat and the other services need it. Full detail:
 | Marketplace | `python/marketplace.py` + SQLite | 3070 | Python stdlib `ThreadingHTTPServer`; persistent state |
 | Sellers ×5 | `lsl/seller.lsl` (one binary) | 3081–3085 | partial/complete = cart audits (HTTP checks), scout/insight/atlas = model services |
 | Agent console | `lsl/chat_server.lsl` | 3069 | Serves the frontend; holds the marketplace client token; runs one chat turn per worker thread |
+| Speech sidecar | `python/tts.py` | 3071 | ElevenLabs text-to-speech for stored agent messages (index-only API, disk cache) |
 
 * **Tokens never reach the browser.** The console stores the marketplace
   `client_token` and proxies privileged calls. Public marketplace endpoints:

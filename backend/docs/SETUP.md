@@ -124,6 +124,22 @@ curl -s 'http://127.0.0.1:3069/api/state?t=1' | head -c 400
 The public dashboard shows the ledger invariant — `issued == accounted` must
 stay true after every purchase.
 
+## 5b. Optional: speech (ElevenLabs)
+
+Put an ElevenLabs API key into a file:
+
+```sh
+mkdir -p ~/.config/elevenlabs
+printf '%s' 'sk_…' > ~/.config/elevenlabs/key
+chmod 600 ~/.config/elevenlabs/key
+```
+
+`scripts/run-local.sh` then starts the speech sidecar (`backend/python/tts.py`,
+port 3071) and the 🔊 buttons on agent messages work. Without the key the
+sidecar is skipped and the button reports `503 Text-to-speech is not
+configured`. The key is never exposed to the browser; only message indexes are
+accepted by the service and rendered audio is cached on disk.
+
 ## 6. Frontend
 
 `frontend/` contains the reference web client (`index.html`, `app.js`,

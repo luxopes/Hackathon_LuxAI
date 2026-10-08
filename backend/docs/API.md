@@ -132,6 +132,24 @@ Set the cancel flag for the running turn. The agent stops before the next
 purchase step; a funded job is always settled or refunded first. Returns
 `{"ok": true}`.
 
+### `POST /api/speak`
+Read one stored agent message aloud (ElevenLabs). The request carries only an
+index, never free text, so the endpoint cannot be abused as a TTS proxy; the
+API key stays on the server and identical texts are served from a disk cache.
+
+```json
+{ "index": 4 }
+```
+* `200` → `audio/mpeg` body (mp3).
+* `400` → `{"error": "index must point at an agent message"}`.
+* `502` → the ElevenLabs API failed (the message carries the reason).
+* `503` → `{"error": "Text-to-speech is not configured on this server."}`.
+
+The reference frontend shows a 🔊 button on agent messages; when the browser
+blocks autoplay (slow first synthesis) the button turns into ▶ and replays the
+already fetched audio on the next click. An "auto voice" toggle reads every
+finished agent reply aloud.
+
 ### `POST /api/new`
 Reset the conversation (`409` while busy). The in-memory chat history is
 dropped; the marketplace wallet stays untouched and the next purchase creates a

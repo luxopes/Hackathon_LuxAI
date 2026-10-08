@@ -10,9 +10,13 @@ api.example.com {
 	}
 
 	# Agent console API + static frontend.
+	# The speech sidecar must be matched before the console route.
+	redir /hackathon01/web /hackathon01/web/ 308
+	handle_path /hackathon01/web/api/speak {
+		reverse_proxy 127.0.0.1:3071
+	}
 	# header_up -Via: the LSL HTTP server rejects duplicated Via headers that
 	# a proxy chain may add, so strip them for this route.
-	redir /hackathon01/web /hackathon01/web/ 308
 	handle_path /hackathon01/web/* {
 		reverse_proxy 127.0.0.1:3069 {
 			header_up -Via

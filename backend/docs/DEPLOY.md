@@ -87,10 +87,27 @@ done
 Units run as `proofpay` with `ProtectSystem=strict`, `NoNewPrivileges`,
 `MemoryMax` 128–256 MB and a `ReadWritePaths=/var/lib/proofpay-mvp` exception.
 
+## 5b. Speech sidecar (optional, ElevenLabs)
+
+```sh
+install -m 644 backend/python/tts.py /opt/proofpay-mvp/tts.py
+printf '%s' 'sk_…' > /etc/proofpay-mvp/elevenlabs.key
+chmod 640 /etc/proofpay-mvp/elevenlabs.key && chown root:proofpay /etc/proofpay-mvp/elevenlabs.key
+install -m 644 deploy/proofpay-tts.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now proofpay-tts.service
+```
+
+The sidecar listens on `127.0.0.1:3071`, reads the message text from the console
+state (`TTS_CONSOLE_URL`) and caches rendered mp3 files in
+`/var/lib/proofpay-mvp/tts`. Without the key file it answers `503` and the
+frontend button reports that speech is not configured.
+
 ## 6. Reverse proxy
 
 Use `deploy/Caddyfile.snippet`. Notes:
 
+* Route `/hackathon01/web/api/speak` to the speech sidecar **before** the
+  console route (the console serves everything else under `/hackathon01/web/`).
 * The console route needs `header_up -Via` — the LSL HTTP parser rejects
   duplicated hop-by-hop headers that a proxy chain may add.
 * Keep the console and its API under one origin so the browser needs no CORS.

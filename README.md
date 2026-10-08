@@ -36,6 +36,10 @@ scripts/    local run/config helpers
 
 ## Docs
 
+* **`TODO.md`** — what is left: rewrite the marketplace pages (`/`, `/payments`,
+  `/receipt/{id}`, `/docs`) in the agent-console design, and port the speech
+  sidecar from Python to LSL.
+
 * **`tools/verify_receipt.py`** — verify a payment receipt offline: recomputes
   the canonical payload, checks the SHA-256 and the Ed25519 signature against the
   published key (`python3 tools/verify_receipt.py --url <receipt-url>`).

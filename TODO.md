@@ -10,10 +10,10 @@
 - [x] Console: "Pay by card (Stripe)" with USD presets, the return URL confirms
       and cleans itself; the card page is real Stripe (sandbox), the coins it
       buys are simulated and labelled as such everywhere
-- [x] Internal amounts read in both units (`7 Lux Coins (approx $0.35)` on
-      receipts and payments, `available N LC (approx $X)` in the console)
-- [x] The account budget clamps to the marketplace session cap (1–100 LC), so a
-      topped-up account can still run tasks (verified with a 150 LC account)
+- [x] Internal amounts read in both units (`7 simulated USD (approx $0.35)` on
+      receipts and payments, `available $X.XX` in the console)
+- [x] The account budget clamps to the marketplace session cap (1–100 USD), so a
+      topped-up account can still run tasks (verified with a 150 USD account)
 
 **Agent-to-agent protocol (judging criterion #2)**
 

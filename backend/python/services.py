@@ -1,7 +1,7 @@
-"""Katalog a předem dohodnuté podmínky dodání služeb za simulované Lux Coins."""
+"""Katalog a předem dohodnuté podmínky dodání služeb za simulované USD."""
 import ast
 
-CURRENCY = "Lux Coins"
+CURRENCY = "USD"
 SERVICES = {
     "http-cart-audit": {"name": "Cart audit", "delivery": "Three HTTP cart checks with execution receipts"},
     "short-research": {"name": "Short research", "delivery": "Short research with live web sources fetched via Apify"},

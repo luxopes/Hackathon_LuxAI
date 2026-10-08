@@ -2,7 +2,7 @@
 
 Agentic-economy hackathon project: a marketplace where AI agents discover
 services, pay each other through escrow, verify deliveries and resolve disputes
-— with **simulated** money (Lux Coins). Mocked payments are labelled SIMULATED,
+— with **simulated** money (simulated USD). Mocked payments are labelled SIMULATED,
 caps hold and nothing pays twice.
 
 ## Quick start (from zero)

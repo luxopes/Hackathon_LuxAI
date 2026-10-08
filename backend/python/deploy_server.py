@@ -150,7 +150,7 @@ TasksMax=64
             temporary.unlink(missing_ok=True)
         (backups / ("deployment-" + timestamp + ".json")).write_text(json.dumps({"previous_caddy_sha256": hashlib.sha256(original.encode()).hexdigest(), "current_caddy_sha256": hashlib.sha256(candidate.encode()).hexdigest(), "added_path": "/hackathon01/"}) + "\n")
     print("Deployed: https://api.lux-ai.cz/hackathon01/")
-    print("Payments: simulated Lux Coins; buyer and sellers: native LSL")
+    print("Payments: simulated USD; buyer and sellers: native LSL")
 
 
 if __name__ == "__main__":

@@ -216,7 +216,7 @@ class Market:
         fixture = payload.get("fixture", "buggy")
         service = payload.get("service", "auto")
         if type(budget) is not int or not 1 <= budget <= 100:
-            raise Problem(400, "budget must be an integer from 1 to 100 Lux Coins")
+            raise Problem(400, "budget must be an integer from 1 to 100 USD")
         if type(title) is not str or not 1 <= len(title.strip()) <= 1000 or fixture not in ["healthy", "buggy"] or service not in ["auto", *SERVICES]:
             raise Problem(400, "invalid session parameters")
         session_id = "session-" + secrets.token_hex(8)
@@ -263,7 +263,7 @@ class Market:
                 raise Problem(409, "offer does not provide the requested service")
             wallet = db.execute("SELECT * FROM wallets WHERE id = ?", (session_id,)).fetchone()
             if wallet["available"] < offer["price"]:
-                raise Problem(409, "insufficient available Lux Coins")
+                raise Problem(409, "insufficient available USD")
             job_id = "job-" + secrets.token_hex(8)
             # Každá zpráva chatu má vlastní neměnné zadání, peněženka zůstává společná.
             contract = self.contract(offer["capability"], task if task is not None else session["title"], offer["tier"])
@@ -550,8 +550,8 @@ class Market:
         except (OSError, subprocess.SubprocessError, sqlite3.Error):
             return
 
-    # --- Stripe (test mode): karta dobije simulované Lux Coins; ledger zůstává jediné účetnictví.
-    STRIPE_USD_TO_LC = 20
+    # --- Stripe (test mode): karta dobije simulované USD; ledger zůstává jediné účetnictví.
+    STRIPE_USD_TO_LC = 1   # 1 jednotka = 1 USD (simulovaně), karta dobíjí 1:1
     STRIPE_MIN_USD = 1
     STRIPE_MAX_USD = 25
 
@@ -598,7 +598,7 @@ class Market:
             "line_items[0][quantity]": "1",
             "line_items[0][price_data][currency]": "usd",
             "line_items[0][price_data][unit_amount]": str(cents),
-            "line_items[0][price_data][product_data][name]": f"Lux Coins top-up (Stripe test): {coins} LC",
+            "line_items[0][price_data][product_data][name]": f"Wallet top-up (Stripe test): {coins} USD",
         })
         with self.transaction() as db:
             db.execute("INSERT OR REPLACE INTO stripe_payments VALUES(?,?,?,?,?,?,?,?,NULL)",
@@ -616,7 +616,7 @@ class Market:
         intent = self.stripe_request("POST", "payment_intents", {
             "amount": str(cents), "currency": "usd", "payment_method": "pm_card_visa", "confirm": "true",
             "automatic_payment_methods[enabled]": "true", "automatic_payment_methods[allow_redirects]": "never",
-            "description": f"Lux Coins top-up (Stripe test): {coins} LC",
+            "description": f"Wallet top-up (Stripe test): {coins} USD",
             "metadata[session_id]": session_id, "metadata[lux_coins]": str(coins),
         })
         with self.transaction() as db:
@@ -658,7 +658,7 @@ class Market:
     def top_up(self, session_id, amount):
         # Simulované dobití peněženky: nový řádek v ledgeru, žádná změna historie.
         if type(amount) is not int or not 1 <= amount <= 1000:
-            raise Problem(400, "top-up must be an integer from 1 to 1000 Lux Coins")
+            raise Problem(400, "top-up must be an integer from 1 to 1000 USD")
         with self.transaction() as db:
             session = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
             if not session:
@@ -804,8 +804,8 @@ class Market:
     # Veřejný doklad o platbě: kompletní auditní stopa jedné zakázky.
     LEDGER_LABELS = {
         "LUX_COINS_ISSUED": ("Test credits issued to the buyer wallet", "issue"),
-        "TOPUP_ISSUED": ("Wallet topped up with simulated Lux Coins", "issue"),
-        "STRIPE_TOPUP": ("Card payment in Stripe test mode credited as Lux Coins", "issue"),
+        "TOPUP_ISSUED": ("Wallet topped up with simulated USD", "issue"),
+        "STRIPE_TOPUP": ("Card payment in Stripe test mode credited as USD", "issue"),
         "ESCROW_LOCKED": ("Funds locked in escrow for the job", "escrow"),
         "RESULT_DELIVERED": ("Seller delivery recorded by the marketplace", "delivery"),
         "DELIVERY_FAILED": ("Seller delivery failed or was invalid", "failure"),
@@ -950,7 +950,7 @@ class Handler(BaseHTTPRequestHandler):
         token = self.headers.get("Authorization", "").removeprefix("Bearer ")
         if self.command == "GET":
             if path == "/health":
-                return self.send(200, {"ok": True, "payments": "simulated Lux Coins"})
+                return self.send(200, {"ok": True, "payments": "simulated USD"})
             if path == "/":
                 return self.send(200, ui.dashboard_page(market.dashboard()), "text/html; charset=utf-8")
             if path == "/.well-known/proofpay-keys.json":

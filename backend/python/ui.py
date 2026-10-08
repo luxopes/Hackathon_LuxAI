@@ -175,15 +175,13 @@ def _copy(value):
     return f'<button class="copy" type="button" data-copy="{escape(value)}" title="Copy">⧉</button>'
 
 
-USD_PER_COIN = 0.05  # pevný peg: 1 USD = 20 Lux Coins
-
-
 def _usd(amount):
-    return f"${float(amount) * USD_PER_COIN:,.2f}"
+    # Simulované částky se zobrazují jako dolary; jedna jednotka ledgeru = 1 USD.
+    return f"${float(amount):,.2f}"
 
 
 def _money(amount, currency=CURRENCY):
-    return f'{amount} {escape(currency)} <span class="muted">(≈ {_usd(amount)})</span>'
+    return f'{_usd(amount)} <span class="muted">simulated</span>'
 
 
 def _path_state(state):
@@ -216,7 +214,7 @@ def shell(base, active, crumbs, content, search_hint="Search by job ID, transact
           description="Agentic economy · simulated payments"):
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(crumbs[-1][0])} · Lux Coins</title>
+<title>{escape(crumbs[-1][0])} · USD</title>
 <link rel="stylesheet" href="{base}assets/site.css">
 </head><body>
 <div class="layout">
@@ -224,7 +222,7 @@ def shell(base, active, crumbs, content, search_hint="Search by job ID, transact
   <div class="brand"><span class="mark"></span><span class="name">LUX</span></div>
   <div class="tagline">Autonomous value flow.</div>
   {_nav(base, active)}
-  <div class="me"><span class="avatar">L</span><div><div class="who">Lux Coins</div><div class="sub">{escape(description)}</div></div></div>
+  <div class="me"><span class="avatar">L</span><div><div class="who">Simulated USD</div><div class="sub">{escape(description)}</div></div></div>
 </aside>
 <div class="main">
   <header class="top">
@@ -376,8 +374,8 @@ def docs_page():
 {_card("integrity", "Invariants and honest disclosure", "What is enforced, what is simulated",
        """<ul>
 <li><b>Fully autonomous turns.</b> From the first message the agent inspects the live catalog, buys the right service in escrow, verifies the delivery and settles or refunds it on its own; it asks for confirmation nowhere. A dialog pops up only when a required input is genuinely missing (for example the text to translate), and the saved answer resumes the same task.</li>
-<li><b>Simulated payments.</b> Lux Coins are test credits in a central SQLite ledger — no real money, no blockchain. They are pegged at <b>1 USD = 20 LC</b> and labelled as simulated everywhere. IDs are scoped to this database.</li>
-<li><b>Card top-ups run in Stripe test mode.</b> The buyer pays on a real Stripe Checkout page (sandbox): the card flow, the amounts in USD, the redirect and the signed confirmation are genuine Stripe objects in test mode, while the coins they buy and every internal settlement stay simulated and labelled as such.</li>
+<li><b>Simulated payments.</b> Every amount is <b>simulated US dollars</b> in a central SQLite ledger — no real money, no blockchain. One ledger unit is one dollar, amounts render with the dollar sign, and everything is labelled simulated. Transaction IDs are scoped to this database.</li>
+<li><b>Card top-ups run in Stripe test mode.</b> The buyer pays on a real Stripe Checkout page (sandbox): the card flow, the amounts in USD, the redirect and the signed confirmation are genuine Stripe objects in test mode, while the credited dollars and every internal settlement stay simulated and labelled as such.</li>
 <li><b>Caps hold.</b> A wallet can never spend beyond its budget; the market-wide invariant <span class="mono">issued == accounted</span> is checked on every page.</li>
 <li><b>Nothing pays twice.</b> Idempotency keys plus unique constraints allow exactly one escrow and one settlement per job.</li>
 <li><b>Structural verification only.</b> Deliveries are checked for structure, Python syntax, cited sources and execution receipts — this does not guarantee general semantic correctness.</li>
@@ -440,12 +438,12 @@ def dashboard_page(data):
     stats = f"""<div class="grid-cards">
   <div class="stat"><label>Sessions</label><b>{len(data["sessions"])}</b><div class="sub">recent, newest first</div></div>
   <div class="stat"><label>Offers</label><b>{len(data["offers"])}</b><div class="sub">{len(services)} services, 5 sellers</div></div>
-  <div class="stat"><label>Issued == accounted</label><b style="color:{'var(--green)' if invariant['holds'] else 'var(--red)'}">{'HOLDS' if invariant['holds'] else 'BROKEN'}</b><div class="sub">{invariant["issued"]} == {invariant["accounted"]} Lux Coins</div></div>
+  <div class="stat"><label>Issued == accounted</label><b style="color:{'var(--green)' if invariant['holds'] else 'var(--red)'}">{'HOLDS' if invariant['holds'] else 'BROKEN'}</b><div class="sub">{_usd(invariant["issued"])} == {_usd(invariant["accounted"])}</div></div>
 </div>"""
     content = f"""<div class="hero-row">
   <div>
     <div class="kicker"><span>Marketplace overview</span><span class="pill neutral">SIMULATED PAYMENTS</span></div>
-    <h1 class="hero">Lux Coins</h1>
+    <h1 class="hero">Simulated USD</h1>
     <p class="lede">The agent orders work, verifies delivery and resolves disputes. Sellers are paid only
     for deliveries that pass the agreed contract; failed ones are refunded automatically.</p>
     <div class="gen">Every payment is a simulated test credit in the central ledger.</div>
@@ -463,7 +461,7 @@ def dashboard_page(data):
 {''.join(session_cards)}"""
     return shell("", "overview",
                  [("Overview", "")], content,
-                 description="simulated Lux Coins · overview")
+                 description="simulated US dollars · overview")
 
 
 def payments_page(data, query="", chain=None):
@@ -506,7 +504,7 @@ def payments_page(data, query="", chain=None):
     <h1 class="hero">All payments</h1>
     <p class="lede">Every agent purchase settled on this marketplace, newest first. Open any row's
     receipt for the complete audit trail: ledger movements, escrow lifecycle, contract and hashes.</p>
-    <div class="gen">Generated {escape(data["generated_at"])} · {invariant["issued"]} issued == {invariant["accounted"]} accounted Lux Coins</div>
+    <div class="gen">Generated {escape(data["generated_at"])} · {_usd(invariant["issued"])} issued == {_usd(invariant["accounted"])} accounted</div>
   </div>
   {_deco()}
 </div>
@@ -706,9 +704,9 @@ def receipt_page(data, job_id):
 </div>
 <div class="toolbar">
   <span class="pill {'ok' if invariant['holds'] else 'err'}">MARKET INVARIANT {'HOLDS' if invariant['holds'] else 'BROKEN'}</span>
-  <span class="muted">issued {invariant['issued']} == accounted {invariant['accounted']} Lux Coins</span>
+  <span class="muted">issued {_usd(invariant['issued'])} == accounted {_usd(invariant['accounted'])}</span>
 </div>
-<div class="notice"><strong>Honest disclosure.</strong> Payments are simulated Lux Coins in a central SQLite
+<div class="notice"><strong>Honest disclosure.</strong> Payments are simulated US dollars in a central SQLite
 ledger on this marketplace; nothing here is a blockchain transaction and transaction IDs are scoped to this
 database. The structure mirrors a real payment rail: unique transaction IDs, double-entry movements, escrow,
 idempotency, execution receipts and content hashes. Delivery checks are structural (syntax, cited sources,

@@ -55,7 +55,7 @@ Static frontend (`index.html` from `PROOFPAY_WEB_DIR`). Other static files
 
 ### `GET /api/health`
 ```json
-{ "ok": true, "payments": "simulated Lux Coins" }
+{ "ok": true, "payments": "simulated USD" }
 ```
 
 ### `GET /api/state`
@@ -70,13 +70,13 @@ Response (full mode):
 ```json
 {
   "ok": true,
-  "currency": "Lux Coins",
+  "currency": "USD",
   "simulated_payments": true,
   "ai_model": "flash",
   "messages": [ { "role": "Agent", "content": "…" }, { "role": "You", "content": "…" } ],
   "tools": [ { "id": "tool-…", "summary": "OK · fetch_offers · Flash tool · 1060 ms",
                "lines": ["Tool: fetch_offers", "Status: OK · source: Flash tool", "…"] } ],
-  "payments": [ { "id": "job-…", "summary": "PAID · 7 Lux Coins · complete · job-…",
+  "payments": [ { "id": "job-…", "summary": "PAID · $7.00 · complete · job-…",
                   "lines": ["Job: job-…", "…"] } ],
   "wallet": { "available": 23, "locked": 0 },
   "budget": 30,
@@ -102,7 +102,7 @@ Field notes:
   (input/output JSON as strings).
 * `payments` — one entry per purchased job, fetched from the marketplace
   ledger. `summary` starts with `PAID` or `REFUNDED`.
-* `wallet` — `available` + `locked` (escrow) Lux Coins. `null` until the first
+* `wallet` — `available` + `locked` (escrow) in simulated dollars. `null` until the first
   purchase creates the wallet.
 * `budget` — the configured per-wallet budget (issued on first purchase).
 * `busy` — `true` while a turn is running; the agent handles **one turn at a
@@ -177,7 +177,7 @@ Base URL example: `https://api.lux-ai.cz/hackathon01` (or `http://127.0.0.1:3070
 
 ### Public endpoints (no token)
 
-* `GET /health` → `{"ok": true, "payments": "simulated Lux Coins"}`
+* `GET /health` → `{"ok": true, "payments": "simulated USD"}`
 * `GET /` → public overview dashboard (server-rendered by `ui.py`)
 * `GET /assets/site.css` → shared stylesheet for the public pages
 * `GET /docs` → in-app documentation: architecture, payment lifecycle, API table, invariants and local setup
@@ -237,7 +237,7 @@ must **not** embed it.
 * `GET /api/jobs/{id}/verify` → `{valid_delivery, reasons[], checks[]}` —
   structural verification against the agreed contract.
 * `POST /api/sessions/{id}/stripe-checkout` `{amount_eur}` → creates a Stripe
-  **test-mode** Checkout Session (1 EUR = 20 Lux Coins, 1–25 EUR) and returns
+  **test-mode** Checkout Session in USD (1–25 USD, credited one for one) and returns
   `{checkout_url, stripe_session_id, lux_coins}`. The card page is hosted by
   Stripe; nothing is credited until `stripe-confirm`.
 * `POST /api/sessions/{id}/stripe-confirm` `{stripe_session_id}` → verifies the
@@ -287,7 +287,7 @@ Every transition is idempotent and recorded in the central SQLite ledger.
 
 ## 6. Invariants and labels (required)
 
-* **Simulated money.** All payments are simulated Lux Coins in a central SQLite
+* **Simulated money.** All payments are simulated US dollars in a central SQLite
   ledger; the UI must label them `SIMULATED` (`simulated_payments: true` is part
   of every state/receipt).
 * **Caps hold.** A wallet never spends beyond its budget; the marketplace

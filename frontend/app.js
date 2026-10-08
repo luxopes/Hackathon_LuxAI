@@ -1,7 +1,7 @@
 "use strict";
-// Lux Coins workspace console. Polls the console state and renders the
+// Agentic economy workspace console. Polls the console state and renders the
 // conversation, this session's tasks, the seller board, the live tool-call feed
-// and the wallet. Payments are simulated Lux Coins held by the marketplace.
+// and the wallet. Payments are simulated US dollars held by the marketplace.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -312,7 +312,7 @@ function renderTasks(payments) {
         <span><b>${esc(meta.label)}</b><small>${esc(payment.job)}</small></span></div></td>
       <td><span class="avatars"><span class="avatar">${esc(payment.seller.slice(0, 2).toUpperCase())}</span></span></td>
       <td><span class="badge ${payment.state === "PAID" ? "completed" : "failed"}">${payment.state === "PAID" ? "Paid" : "Refunded"}</span></td>
-      <td>${payment.amount}.00 LC</td>
+      <td>${usd(payment.amount)}</td>
       <td>${esc(relative(payment.stamp))}</td>
       <td><a class="text-button" href="../receipt/${esc(payment.id)}" target="_blank" rel="noopener">receipt →</a></td>`;
     row.addEventListener("click", (event) => {
@@ -342,7 +342,7 @@ function renderStats(st) {
   $("stat-active-note").textContent = busy ? "In progress" : "Nothing running";
   $("stat-completed").textContent = String(paid.length);
   $("stat-completed-note").textContent = paid.length ? "Paid in this session" : "Delivered in this session";
-  $("stat-spent").textContent = paid.reduce((sum, payment) => sum + payment.amount, 0) + " LC";
+  $("stat-spent").textContent = usd(paid.reduce((sum, payment) => sum + payment.amount, 0));
   const sellers = Object.keys(offers.sellers).length || 5;
   $("stat-agents").textContent = String(sellers);
   $("stat-agents-note").textContent = busy ? "1 running" : "Ready for a new task";
@@ -352,17 +352,17 @@ function renderWallet(st) {
   const available = st.wallet ? st.wallet.available : null;
   const locked = st.wallet ? st.wallet.locked : 0;
   const budget = st.budget != null ? st.budget : null;
-  $("side-balance").innerHTML = (available === null ? "—" : available) + "<small> LC</small>";
-  $("balance-total").innerHTML = (available === null ? "—" : available + locked) + "<small> LC</small>";
-  $("balance-note").textContent = available === null ? "Simulated credits · 1 USD = 20 LC"
-    : `available ${available} LC (≈ $${(available * 0.05).toFixed(2)}) · in escrow ${locked}${budget ? " · budget " + budget : ""} · simulated`;
+  $("side-balance").innerHTML = available === null ? "—" : "<small>$</small>" + Number(available).toFixed(2);
+  $("balance-total").innerHTML = available === null ? "—" : "<small>$</small>" + Number(available + locked).toFixed(2);
+  $("balance-note").textContent = available === null ? "Simulated US dollars"
+    : `available ${usd(available)} · in escrow ${usd(locked)}${budget ? " · budget " + usd(budget) : ""} · simulated`;
   $("balance-bar").style.width = available === null || !budget ? "100%" : Math.min(100, Math.round(((available + locked) / budget) * 100)) + "%";
   const field = $("task-budget");
   if (available === null) {
-    field.value = budget ? budget + " LC budget · wallet created on first purchase" : "no wallet yet";
+    field.value = budget ? usd(budget) + " budget · wallet created on first purchase" : "no wallet yet";
   } else {
-    field.value = available + " LC available" + (locked ? " · " + locked + " LC in escrow" : "")
-      + (budget ? "  (wallet budget " + budget + " LC)" : "");
+    field.value = usd(available) + " available" + (locked ? " · " + usd(locked) + " in escrow" : "")
+      + (budget ? "  (wallet budget " + usd(budget) + ")" : "");
   }
 }
 
@@ -392,7 +392,7 @@ function renderAgents() {
     card.dataset.search = (seller.name + " " + tags.join(" ")).toLowerCase();
     card.innerHTML = `<div class="agent-card-head"><span class="agent-icon ${meta.tile}">${ICON[capability] || ICON.agent}</span>
         <span><b>${esc(seller.name)}</b><p>${esc(tags.slice(0, 3).join(", ")) || "Services"}</p></span></div>
-      <div class="agent-card-bottom"><span class="available">Available</span><span>${cheapest ? cheapest.price : "?"}.00 LC / task</span></div>`;
+      <div class="agent-card-bottom"><span class="available">Available</span><span>${usd(cheapest ? cheapest.price : 0)} / task</span></div>`;
     const hire = document.createElement("button");
     hire.className = "hire";
     hire.textContent = "Hire";
@@ -656,7 +656,7 @@ function renderDelivery(data) {
 
   const info = document.createElement("div");
   info.className = "delivery-meta";
-  info.append(metaRow("Amount", job.price + " LC"), metaRow("State", job.state),
+  info.append(metaRow("Amount", usd(job.price)), metaRow("State", job.state),
     metaRow("Seller", job.seller_id || ""), metaRow("Job", job.id || ""),
     metaRow("When", job.created ? new Date(job.created * 1000).toLocaleString("en-GB") : "—"));
 
@@ -792,6 +792,11 @@ async function newConversation() {
   } catch { /* state follows */ }
 }
 
+function usd(amount) {
+  const value = Number(amount);
+  return "$" + (Number.isFinite(value) ? value.toFixed(2) : "0.00");
+}
+
 const AUTO_STEPS = ["What is on offer right now and at what prices?", "Please audit the marketplace demo cart."];
 
 function startAutoDemo() {
@@ -901,8 +906,8 @@ function applyAccount(user) {
   $("profile-name").textContent = user.username;
   $("profile-avatar").textContent = user.username.slice(0, 1).toUpperCase();
   $("pm-username").textContent = user.username;
-  $("pm-budget").textContent = "budget " + user.budget + " LC";
-  $("topup-current").textContent = "Current account budget: " + user.budget + " LC";
+  $("pm-budget").textContent = "budget " + usd(user.budget);
+  $("topup-current").textContent = "Current account budget: " + usd(user.budget);
 }
 
 async function authSubmit(event) {
@@ -926,7 +931,7 @@ async function authSubmit(event) {
     $("auth-password").value = "";
     if (!data.user.welcome_seen) {
       $("welcome-name").textContent = data.user.username;
-      $("welcome-budget").textContent = data.user.budget;
+      $("welcome-budget").textContent = usd(data.user.budget);
       $("welcome-overlay").hidden = false;
     }
     lastMessagesRev = -1;
@@ -1034,9 +1039,9 @@ async function confirmStripeReturn(stripeId) {
     const stripe = data.stripe || {};
     if (resp.ok && data.user) applyAccount(data.user);
     if (resp.ok && stripe.credited) {
-      showNotice("Card payment confirmed (Stripe test): +" + stripe.lux_coins + " Lux Coins.");
+      showNotice("Card payment confirmed (Stripe test): +" + usd(stripe.lux_coins) + ".");
     } else if (resp.ok) {
-      showNotice("Stripe payment already credited (+" + stripe.lux_coins + " Lux Coins).");
+      showNotice("Stripe payment already credited (+" + usd(stripe.lux_coins) + ").");
     } else {
       showNotice((data.error || "Stripe confirmation failed") + " (HTTP " + resp.status + ")");
     }
@@ -1105,7 +1110,7 @@ async function submitTopUp() {
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) { $("topup-status").textContent = data.error || "Top-up failed (HTTP " + resp.status + ")"; return; }
     applyAccount(data.user);
-    $("topup-status").textContent = "Topped up by " + amount + " LC. Budget is now " + data.user.budget + " LC.";
+    $("topup-status").textContent = "Topped up by " + usd(amount) + ". Budget is now " + usd(data.user.budget) + ".";
     lastAuditRev = -1;
   } catch (error) {
     $("topup-status").textContent = "Top-up failed: " + error.message;
@@ -1139,7 +1144,7 @@ async function boot() {
     hideAuth();
     if (!data.user.welcome_seen) {
       $("welcome-name").textContent = data.user.username;
-      $("welcome-budget").textContent = data.user.budget;
+      $("welcome-budget").textContent = usd(data.user.budget);
       $("welcome-overlay").hidden = false;
     }
     const params = new URLSearchParams(window.location.search);
@@ -1172,7 +1177,7 @@ function searchItems(term) {
     .filter((payment) => (payment.job + " " + payment.seller + " " + label(payment.capability) + " " + payment.state
       + " " + payment.amount + " lc").toLowerCase().includes(needle))
     .slice(0, 5)
-    .map((payment) => ({ icon: ICON[payment.capability] || ICON.agent, title: label(payment.capability) + " · " + payment.amount + " LC",
+    .map((payment) => ({ icon: ICON[payment.capability] || ICON.agent, title: label(payment.capability) + " · " + usd(payment.amount),
                          sub: payment.job + " · " + payment.seller + " · " + payment.state, action: () => openDelivery(payment.id) }));
   if (tasks.length) groups.push({ label: "Your tasks", items: tasks });
 
@@ -1181,7 +1186,7 @@ function searchItems(term) {
     .filter((seller) => (seller.name + " " + seller.offers.map((offer) => label(offer.capability)).join(" ")).toLowerCase().includes(needle))
     .slice(0, 5)
     .map((seller) => ({ icon: ICON[seller.offers[0].capability] || ICON.agent, title: seller.name,
-                        sub: "from " + seller.offers[0].price + " LC · " + seller.offers.map((offer) => label(offer.capability)).slice(0, 3).join(", "),
+                        sub: "from " + usd(seller.offers[0].price) + " · " + seller.offers.map((offer) => label(offer.capability)).slice(0, 3).join(", "),
                         action: () => openDialog(seller.offers[0].capability, seller) }));
   if (sellers.length) groups.push({ label: "Agents", items: sellers });
 

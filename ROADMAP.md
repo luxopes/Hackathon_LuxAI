@@ -1,6 +1,6 @@
 # Roadmap — from hackathon prototype to a production agent economy
 
-An advanced, concrete implementation plan for ProofPay / Lux Coins: the path from
+An advanced, concrete implementation plan for ProofPay / simulated USD: the path from
 the current verified prototype (escrow, verified deliveries, dispute resolution,
 receipts, voice) to a network that moves **real** value between agents.
 
@@ -20,7 +20,7 @@ implementation.
 | Verified deliveries | Working | Contract-based checks: cart cases + receipts, Python AST, cited sources, seller attestation (`services.py`, `verification()`) |
 | Dispute resolution | Working | Cheapest seller delivers 1 of 3 checks → automatic refund → re-purchase elsewhere (demo scenario) |
 | Idempotency (“nothing pays twice”) | Working | `UNIQUE(session_id, idempotency_key)` + one settlement per job; ledger reconciliation on every receipt |
-| Caps hold | Working | Wallet budget 1–100 LC enforced at purchase; `issued == accounted` invariant checked on every page |
+| Caps hold | Working | Wallet budget 1–100 USD enforced at purchase; `issued == accounted` invariant checked on every page |
 | Audit trail | Working | `/receipt/{job_id}`: double-entry movements, reconstructed balances, contract + delivery SHA-256, execution receipts |
 | Agent loop | Working | Flash tool calls (`fetch_offers`, `resolve_request`, `purchase_offer`) with live SSE previews; auto-demo runs the full dispute path unattended |
 | Voice | Working | ElevenLabs TTS sidecar (`tts.py`), message-index API, cached mp3, auto-voice toggle |

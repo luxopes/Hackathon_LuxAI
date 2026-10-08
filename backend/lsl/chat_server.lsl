@@ -156,7 +156,7 @@ function ensure_session(account):
 end
 
 function credit_card_topup(who, session_id, outcome):
-    # Zapíše připsané Lux Coins do účtu i stavu; volat jen když Stripe potvrdil platbu.
+    # Zapíše připsané dolary do účtu i stavu; volat jen když Stripe potvrdil platbu.
     # HTTP volání záměrně mimo zámek: pomalá odpověď nesmí zablokovat ostatní vlákna.
     refreshed = buyer.api(config, "GET", "/api/sessions/" + session_id, None)
     call lock()
@@ -176,7 +176,7 @@ function credit_card_topup(who, session_id, outcome):
     call users_save()
     call lock()
     try:
-        call add_notification("info", "Card payment confirmed (Stripe test): +" + String(outcome["lux_coins"]) + " Lux Coins", "")
+        call add_notification("info", "Card payment confirmed (Stripe test): +" + usd(outcome["lux_coins"]), "")
     else:
         call time.time()
     end
@@ -198,6 +198,11 @@ function user_public(user):
 end
 settings = {"port": 3069, "web_dir": "", "root": -1}
 config = {}
+
+# Jedna jednotka ledgeru = 1 USD (simulovaně); zobrazujeme dolary.
+function usd(amount):
+    return "$" + String(Int(amount)) + ".00"
+end
 
 function lock():
     while atomic_cas(flags, 0, 0, 1) != 0:
@@ -259,10 +264,10 @@ function tool_entry(trace):
 end
 
 function payment_entry(receipt):
-    lines = ["Job: " + receipt["job_id"], "State on read: " + receipt["state"] + " · " + String(receipt["amount"]) + " Lux Coins", "Buyer wallet: " + receipt["session_id"], "Seller: " + receipt["seller_id"], "Offer: " + receipt["offer_id"], "Idempotency key: " + receipt["idempotency_key"], "", "TRANSACTIONS · central ledger · simulated Lux Coins"]
+    lines = ["Job: " + receipt["job_id"], "State on read: " + receipt["state"] + " · " + usd(receipt["amount"]), "Buyer wallet: " + receipt["session_id"], "Seller: " + receipt["seller_id"], "Offer: " + receipt["offer_id"], "Idempotency key: " + receipt["idempotency_key"], "", "TRANSACTIONS · central ledger · simulated USD"]
     for transaction in receipt["transactions"]:
         lines.append("")
-        lines.append(transaction_name(transaction["action"]) + " · " + transaction["id"] + " · " + String(transaction["amount"]) + " Lux Coins")
+        lines.append(transaction_name(transaction["action"]) + " · " + transaction["id"] + " · " + usd(transaction["amount"]))
         lines.append("Ledger ID: " + String(transaction["ledger_id"]) + " · time: " + transaction["created_at"])
         lines.append("From: " + transaction["from_wallet"] + " / " + transaction["from_account"])
         lines.append("To: " + transaction["to_wallet"] + " / " + transaction["to_account"])
@@ -277,7 +282,7 @@ function payment_entry(receipt):
     end
     lines.append("")
     lines.append("Transaction IDs are scoped to this marketplace database. They are not blockchain transactions.")
-    summary = receipt["state"] + " · " + String(receipt["amount"]) + " Lux Coins · " + receipt["seller_id"] + " · " + receipt["job_id"]
+    summary = receipt["state"] + " · " + usd(receipt["amount"]) + " · " + receipt["seller_id"] + " · " + receipt["job_id"]
     return {"id": receipt["job_id"], "summary": summary, "lines": lines}
 end
 
@@ -303,7 +308,7 @@ function status_line(event):
     elif action == "PAYMENT_UNAVAILABLE":
         return data["message"]
     elif action == "SESSION_CREATED":
-        return "New session · budget " + String(data["budget"]) + " Lux Coins"
+        return "New session · budget " + usd(data["budget"])
     elif action == "PLANNER_THINKING":
         return "Flash is resolving the request…"
     elif action == "CATALOG_FETCHED":
@@ -311,20 +316,20 @@ function status_line(event):
     elif action == "CHAT_DECISION":
         return data["message"]
     elif action == "ESCROW_LOCKED":
-        return "Escrow " + String(data["amount"]) + " Lux Coins · " + String(data["offer_id"])
+        return "Escrow " + usd(data["amount"]) + " · " + String(data["offer_id"])
     elif action == "DELIVERY_CHECKED":
         if data["verdict"]["valid_delivery"]:
             return "Delivery passed the agreed checks"
         end
         return "DISPUTE · " + ", ".join(data["verdict"]["reasons"])
     elif action == "REFUND_RECEIVED":
-        return "REFUND · " + String(data["amount"]) + " Lux Coins returned"
+        return "REFUND · " + usd(data["amount"]) + " returned"
     elif action == "PAYMENT_RELEASED":
-        return "PAID · " + String(data["amount"]) + " Lux Coins → " + String(data["seller_id"])
+        return "PAID · " + usd(data["amount"]) + " → " + String(data["seller_id"])
     elif action == "FINISHED":
-        return "DONE · available " + String(data["wallet"]["available"]) + " Lux Coins"
+        return "DONE · available " + usd(data["wallet"]["available"])
     elif action == "STOPPED":
-        return "STOPPED · available " + String(data["wallet"]["available"]) + " Lux Coins"
+        return "STOPPED · available " + usd(data["wallet"]["available"])
     end
     return action
 end
@@ -398,11 +403,11 @@ function progress(event):
         elif action == "REFUND_RECEIVED":
             state["wallet"]["available"] += data["amount"]
             state["wallet"]["locked"] -= data["amount"]
-            call append_message("Agent", "Delivery did not meet the contract. " + String(data["amount"]) + " Lux Coins refunded; selecting another seller.")
-            call add_notification("refund", String(data["amount"]) + " Lux Coins refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
+            call append_message("Agent", "Delivery did not meet the contract. " + usd(data["amount"]) + " refunded; selecting another seller.")
+            call add_notification("refund", usd(data["amount"]) + " refunded by " + String(data["seller_id"]) + " (delivery failed verification)", data.get("job_id", ""))
         elif action == "PAYMENT_RELEASED":
             state["wallet"]["locked"] -= data["amount"]
-            call add_notification("paid", String(data["amount"]) + " Lux Coins paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
+            call add_notification("paid", usd(data["amount"]) + " paid to " + String(data["seller_id"]) + " (verified delivery)", data.get("job_id", ""))
         elif action == "SESSION_CREATED":
             state["budget"] = data["budget"]
         elif action == "CHAT_DECISION":
@@ -425,7 +430,7 @@ function worker():
             catalog = buyer.traced_api(config, [], progress, "fetch_offers_http", "GET", "/api/offers")
             text = "Current offers (" + String(len(catalog["offers"])) + "):"
             for offer in catalog["offers"]:
-                text += chr(10) + offer["service_name"] + " · " + offer["name"] + " · " + String(offer["price"]) + " Lux Coins · " + offer["delivery"]
+                text += chr(10) + offer["service_name"] + " · " + offer["name"] + " · " + usd(offer["price"]) + " · " + offer["delivery"]
             end
             call lock()
             try:
@@ -561,7 +566,7 @@ function snapshot(lite=False):
         question = {"id": state["question"]["id"], "text": state["question"]["text"],
                     "options": state["question"]["options"], "time": state["question"]["time"]}
     end
-    view = {"ok": True, "currency": "Lux Coins", "simulated_payments": True, "ai_model": "flash", "question": question, "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
+    view = {"ok": True, "currency": "USD", "simulated_payments": True, "ai_model": "flash", "question": question, "tools": tools, "payments": payments, "messages": messages, "wallet": wallet, "budget": state["budget"], "status": state["status"], "busy": state["busy"], "messages_revision": state["messages_revision"], "audit_revision": state["audit_revision"], "tool_count": len(state["tools"]), "payment_count": len(state["payments"]), "notifications": notifications, "notifications_revision": state["notifications_revision"], "notification_count": len(state["notifications"]), "time": time.time()}
     call atomic_xchg(flags, 0, 0)
     return view
 end
@@ -652,7 +657,7 @@ function route(client, request):
         return
     end
     if target == "/api/health" and method == "GET":
-        call send_json(client, 200, {"ok": True, "payments": "simulated Lux Coins"})
+        call send_json(client, 200, {"ok": True, "payments": "simulated USD"})
         return
     end
     # --- účty: registrace a přihlášení (bez tokenu) ---
@@ -884,7 +889,7 @@ function route(client, request):
                 amount = payload.get("amount")
             end
             if type(amount) != "Int" or amount < 1 or amount > 500:
-                call send_error_json(client, 400, "top-up amount must be a whole number from 1 to 500 Lux Coins")
+                call send_error_json(client, 400, "top-up amount must be a whole number from 1 to 500 USD")
                 return
             end
             if busy_now():
@@ -919,7 +924,7 @@ function route(client, request):
                 end
             end
             call lock()
-            call add_notification("info", "Account topped up: +" + String(amount) + " Lux Coins (budget " + String(new_budget) + ")", "")
+            call add_notification("info", "Account topped up: +" + usd(amount) + " (budget " + usd(new_budget) + ")", "")
             call unlock()
             call send_json(client, 200, {"user": user_public(user_find(who)), "wallet": wallet})
             return

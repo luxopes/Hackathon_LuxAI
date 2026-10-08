@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
-<title>Lux Coins · Workspace</title>
+<meta name="description" content="An agentic economy workspace where agents buy verified work with simulated US dollars.">
+<title>Simulated USD · Workspace</title>
 <link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <aside class="sidebar">
   <a class="brand" href="./">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg>
-    <span>Lux Coins<small>Agentic Economy</small></span>
+    <span>LUX<small>Simulated USD economy</small></span>
   </a>
   <div class="nav-label">WORKSPACE</div>
   <nav id="side-nav">
@@ -30,7 +30,7 @@
   <div class="sidebar-bottom">
     <div class="credit-box">
       <span>Available demo credits</span>
-      <strong id="side-balance">—<small> LC</small></strong>
+      <strong id="side-balance">—</strong>
       <a class="button primary full" href="../payments">Manage credits</a>
     </div>
     <div class="signature"><b>Agentic Economy</b><span>Work. Delegate. Create.</span></div>
@@ -111,7 +111,7 @@
         </div>
         <div class="stat">
           <span class="stat-icon blue"><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18M7 15h4"/></svg></span>
-          <div><span>Total spent</span><strong id="stat-spent">0 LC</strong><small>Simulated transactions</small></div>
+          <div><span>Total spent</span><strong id="stat-spent">$0.00</strong><small>Simulated transactions</small></div>
         </div>
         <div class="stat">
           <span class="stat-icon amber"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.6-3.4 2.9-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><path d="M16.5 9.2h4M18.5 7.2v4"/></svg></span>
@@ -166,7 +166,7 @@
       <section class="panel">
         <div class="panel-head"><h2>Your balance</h2><a class="text-button" href="../payments">View details →</a></div>
         <div class="balance-content">
-          <strong id="balance-total">—<small> LC</small></strong>
+          <strong id="balance-total">—</strong>
           <div class="balance-line"><span id="balance-bar"></span></div>
           <div class="balance-foot"><span id="balance-note">Demo credits only</span><a class="button small" href="../payments">Manage</a></div>
         </div>
@@ -174,7 +174,7 @@
     </div>
   </div>
 
-  <footer><span>Lux Coins</span><span id="sys-inline">Frontend demo · simulated credits have no monetary value</span></footer>
+  <footer><span>LUX</span><span id="sys-inline">Frontend demo · simulated dollars have no monetary value</span></footer>
 </main>
 
 <dialog id="task-dialog">
@@ -198,7 +198,7 @@
         <input name="budget" id="task-budget" type="text" value="—" readonly title="Live balance of this conversation's wallet on the marketplace">
       </label>
     </div>
-    <p class="form-note">The wallet and escrow live on the marketplace; payments are simulated Lux Coins and labelled as such.</p>
+    <p class="form-note">The wallet and escrow live on the marketplace; payments are simulated US dollars and labelled as such.</p>
     <div class="dialog-footer">
       <button type="button" id="dialog-cancel">Cancel</button>
       <button class="primary" type="submit" id="dialog-submit">Send task</button>
@@ -235,7 +235,7 @@
 <div class="auth-overlay" id="auth-overlay" hidden>
   <div class="auth-card">
     <div class="auth-brand"><span class="mark"><svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg></span>
-      <div><b>Lux Coins</b><small>Agentic Economy</small></div>
+      <div><b>LUX</b><small>Agentic Economy</small></div>
     </div>
     <div class="auth-tabs">
       <button type="button" class="auth-tab active" data-mode="login">Sign in</button>
@@ -247,7 +247,7 @@
       <p class="auth-error" id="auth-error"></p>
       <button class="primary full big" type="submit" id="auth-submit">Sign in</button>
     </form>
-    <p class="auth-note">Accounts are stored on this server; coins are simulated Lux Coins and have no monetary value.</p>
+    <p class="auth-note">Accounts are stored on this server; every amount is in simulated US dollars and has no monetary value.</p>
   </div>
 </div>
 
@@ -256,7 +256,7 @@
     <div class="welcome-coins" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
     <div class="welcome-mark"><span class="welcome-ring"></span><svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2 31 29H21L16 19 11 29H1Z"/></svg></div>
     <h2>Welcome, <span id="welcome-name">hacker</span>!</h2>
-    <p>You got <b id="welcome-budget">30</b> simulated Lux Coins. The agent discovers sellers, locks the price in escrow, verifies the delivery and resolves disputes on its own.</p>
+    <p>You start with <b id="welcome-budget">$30.00</b> in simulated dollars. The agent discovers sellers, locks the price in escrow, verifies the delivery and resolves disputes on its own.</p>
     <div class="welcome-actions">
       <button class="primary" type="button" id="welcome-guide">Show me around</button>
       <button type="button" id="welcome-skip">Start exploring</button>
@@ -295,20 +295,20 @@
   <p class="text-muted" id="topup-status"></p>
   <div class="topup-divider"><span>or pay by card</span></div>
   <div class="topup-presets" id="stripe-presets">
-    <button type="button" class="usd active" data-usd="1">$1 = 20 LC</button>
-    <button type="button" class="usd" data-usd="5">$5 = 100 LC</button>
-    <button type="button" class="usd" data-usd="10">$10 = 200 LC</button>
+    <button type="button" class="usd active" data-usd="1">Load $1.00</button>
+    <button type="button" class="usd" data-usd="5">Load $5.00</button>
+    <button type="button" class="usd" data-usd="10">Load $10.00</button>
   </div>
   <div class="stripe-actions">
     <button class="primary" type="button" id="stripe-pay">Pay by card (Stripe)</button>
   </div>
-  <p class="text-muted stripe-note" id="stripe-status">Card payments run in <b>Stripe test mode</b> (sandbox): use <b>4242 4242 4242 4242</b>, any future date and any CVC on the Stripe page. The wallet is credited with <b>simulated Lux Coins</b> (1 USD = 20 LC) — a realistic flow, no real money.</p>
+  <p class="text-muted stripe-note" id="stripe-status">Card payments run in <b>Stripe test mode</b> (sandbox): use <b>4242 4242 4242 4242</b>, any future date and any CVC on the Stripe page. The wallet is credited with <b>simulated dollars</b>, one for one with what you pay — a realistic flow, no real money.</p>
   <div class="dialog-footer">
     <button type="button" id="topup-cancel">Cancel</button>
     <button class="primary" type="button" id="topup-submit">Top up</button>
   </div>
 </dialog>
 
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
 </body>
 </html>

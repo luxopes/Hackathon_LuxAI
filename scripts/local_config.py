@@ -84,6 +84,9 @@ def main():
         os.chmod(signing, 0o600)
         os.chmod(str(signing) + ".pub", 0o600)
     market["receipt_signing_key_file"] = str(signing)
+    # Locally the console has its own port; the marketplace redirects web/ there
+    # (in production Caddy serves the console under web/ on the same origin).
+    market["console_url"] = "http://127.0.0.1:3069/"
     path = CFG / "market.json"
     path.write_text(json.dumps(market, indent=2) + "\n")
     os.chmod(path, 0o600)
@@ -98,6 +101,8 @@ def main():
         "PROOFPAY_LANG=en",
         "PROOFPAY_WEB_PORT=3069",
         f"PROOFPAY_WEB_DIR={ROOT / 'frontend'}",
+        # Accounts must persist locally too (the default is the server path /var/lib/proofpay-mvp).
+        f"PROOFPAY_USERS_FILE={DATA / 'users.json'}",
     ])
     print(f"Local configuration: {CFG}")
     if not Path(key_file).is_file():

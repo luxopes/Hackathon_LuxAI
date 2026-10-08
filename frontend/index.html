@@ -7,7 +7,8 @@
 <title>LUX AGENTS · Workspace</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
   <link rel="alternate icon" href="favicon.ico?v=1">
-<link rel="stylesheet" href="style.css?v=31">
+<script>(function(){var t=null;try{t=localStorage.getItem("pp-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t})();</script>
+<link rel="stylesheet" href="style.css?v=32">
 </head>
 <body>
 <aside class="sidebar">
@@ -52,6 +53,7 @@
     <label class="search">⌕ <input id="search" placeholder="Search agents, tasks or actions…" aria-label="Search" autocomplete="off"><kbd>/</kbd></label>
     <div class="search-pop" id="search-pop" hidden></div>
   </div>
+  <button class="theme-toggle" type="button" id="theme-toggle" title="Switch dark / light mode" aria-label="Switch dark / light mode"><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
   <div class="bell-wrap">
     <button class="bell" type="button" id="bell" title="Notifications from finished tasks"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg><span class="bell-dot" id="bell-dot" hidden></span><span class="bell-count" id="bell-count" hidden></span></button>
     <div class="bell-menu" id="bell-menu" hidden>
@@ -318,5 +320,49 @@
 </dialog>
 
 <script src="app.js?v=32"></script>
+<script>
+(function(){
+  var root=document.documentElement;
+  var calm=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function save(t){try{localStorage.setItem("pp-theme",t)}catch(e){}}
+  var b=document.getElementById("theme-toggle");
+  if(b)b.addEventListener("click",function(){
+    var next=root.dataset.theme==="dark"?"light":"dark";
+    var apply=function(){root.dataset.theme=next;save(next)};
+    if(calm||!document.startViewTransition||document.visibilityState!=="visible")return apply();
+    var r=b.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+    var end=Math.hypot(Math.max(x,innerWidth-x),Math.max(y,innerHeight-y));
+    var t=document.startViewTransition(apply);
+    t.updateCallbackDone.catch(function(){if(root.dataset.theme!==next)apply()}); // never lose the switch
+    t.ready.then(function(){
+      root.animate({clipPath:["circle(0px at "+x+"px "+y+"px)","circle("+end+"px at "+x+"px "+y+"px)"]},
+        {duration:600,easing:"cubic-bezier(.4,0,.2,1)",pseudoElement:"::view-transition-new(root)"});
+    }).catch(function(){});
+    t.finished.catch(function(){});
+    setTimeout(function(){if(root.dataset.theme!==next)apply()},1000); // and a hard guarantee
+  });
+  addEventListener("storage",function(e){if(e.key==="pp-theme"&&(e.newValue==="dark"||e.newValue==="light"))root.dataset.theme=e.newValue});
+  if(calm)return;
+  // Slide the page in, one block after another.
+  var blocks=document.querySelectorAll(".page-head,.hero,.demo-bar,.stats .stat,.agent-card,.main-column>.panel,.right-column>*,.page>.panel,.split>.panel,.page>.notice");
+  for(var i=0;i<blocks.length;i++){blocks[i].classList.add("anim-in");blocks[i].style.animationDelay=Math.min(i*55,700)+"ms"}
+  // Count the stat numbers up from zero.
+  var nums=document.querySelectorAll(".stat strong");
+  for(var j=0;j<nums.length;j++)(function(el,delay){
+    var m=/^(\d+(?:\.\d+)?)(.*)$/.exec(el.textContent.trim());
+    if(!m||+m[1]===0)return;
+    var to=+m[1],dec=(m[1].split(".")[1]||"").length,rest=m[2],t0=null,dur=900,last;
+    var put=function(v){last=v.toFixed(dec)+rest;el.textContent=last};
+    // The real number stays until a frame can actually animate it (hidden tabs never show a fake 0).
+    setTimeout(function(){requestAnimationFrame(function step(now){
+      if(t0===null){if(el.textContent.trim()!==m[0])return;put(0)}
+      else if(el.textContent!==last)return; // the page updated it itself: stop
+      if(t0===null)t0=now;var k=Math.min(1,(now-t0)/dur);
+      if(k<1){put(to*(1-Math.pow(1-k,3)));requestAnimationFrame(step)}else{el.textContent=m[1]+rest}
+    })},250+delay);
+    setTimeout(function(){if(el.textContent===last||el.textContent.trim()===(0).toFixed(dec)+rest)el.textContent=m[1]+rest},250+delay+dur+500); // always end on the real value
+  })(nums[j],j*80);
+})();
+</script>
 </body>
 </html>

@@ -884,7 +884,10 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def send(self, status, value, content_type="application/json; charset=utf-8"):
-        body = encoded(value).encode() if content_type.startswith("application/json") else value.encode()
+        if isinstance(value, bytes):
+            body = value
+        else:
+            body = encoded(value).encode() if content_type.startswith("application/json") else value.encode()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -944,10 +947,50 @@ class Handler(BaseHTTPRequestHandler):
             # Odpojení náhledu neruší již financovanou práci prodejce.
             return
 
+    def proxy_console(self, console_url, path):
+        # Local runs only (market.json "console_url"): serve the console under
+        # web/ on this origin, as Caddy does in production, so relative links
+        # between the console and these pages work and they share the sign-in.
+        if path == "/web":
+            self.send_response(308)
+            self.send_header("Location", "/web/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        query = "?" + self.path.split("?", 1)[1] if "?" in self.path else ""
+        body = None
+        if self.command == "POST":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                raise Problem(400, "invalid body length")
+            if not 0 <= length <= 1048576:
+                raise Problem(413, "body too large")
+            body = self.rfile.read(length)
+        headers = {name: self.headers[name] for name in ("Authorization", "Content-Type", "Accept") if self.headers.get(name)}
+        request = Request(console_url + path.removeprefix("/web/") + query, data=body, headers=headers, method=self.command)
+        try:
+            response = urlopen(request, timeout=60)
+        except HTTPError as error:
+            response = error
+        except (URLError, OSError):
+            raise Problem(502, "agent console unavailable")
+        with response:
+            payload = response.read()
+            self.send_response(response.status)
+            self.send_header("Content-Type", response.headers.get("Content-Type", "application/octet-stream"))
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(payload)
+
     def route(self):
         market = self.server.market
         path = self.path.split("?", 1)[0]
         token = self.headers.get("Authorization", "").removeprefix("Bearer ")
+        console_url = market.config.get("console_url")
+        if console_url and (path == "/web" or path.startswith("/web/")):
+            return self.proxy_console(console_url, path)
         if self.command == "GET":
             if path == "/health":
                 return self.send(200, {"ok": True, "payments": "simulated USD"})
@@ -960,6 +1003,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, ui.SITE_CSS, "text/css; charset=utf-8")
             if path == "/assets/favicon.svg":
                 return self.send(200, ui.FAVICON_SVG, "image/svg+xml; charset=utf-8")
+            if path == "/assets/hero.jpg":
+                # The console's hero photo: frontend/ in the repository, web/ next to this file when deployed.
+                here = Path(__file__).resolve().parent
+                for candidate in (here / "web" / "hero.jpg", here.parent.parent / "frontend" / "hero.jpg"):
+                    if candidate.is_file():
+                        return self.send(200, candidate.read_bytes(), "image/jpeg")
+                raise Problem(404, "route not found")
             if path == "/api/dashboard":
                 return self.send(200, market.dashboard())
             if path == "/api/offers":

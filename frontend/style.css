@@ -857,3 +857,122 @@ button.mic:disabled{opacity:.6}
 .agent-live-step{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#4a5568}
 .agent-live-time{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--muted)}
+
+/* ---------- dark mode (shared verbatim by frontend/style.css and ui.py SITE_CSS) ----------
+   Same layout; only colours change. Set by <html data-theme="dark">, chosen with the
+   top-bar toggle (localStorage "pp-theme", default = system preference). */
+.theme-toggle{position:relative;border:0;background:transparent;padding:6px;color:#5b697e;border-radius:6px}
+.theme-toggle:hover{background:#f3f5f8}
+.theme-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+.theme-toggle .moon{display:block}.theme-toggle .sun{display:none}
+:root[data-theme=dark] .theme-toggle .moon{display:none}:root[data-theme=dark] .theme-toggle .sun{display:block}
+:root[data-theme=dark]{
+  --ink:#e7ebf1;--muted:#98a3b4;--line:#262e3b;--surface:#131922;--canvas:#0c1016;--blue:#7aa2ff;--green:#43c98b;
+  --amber:#e0a84a;--red:#f07a8c;color-scheme:dark}
+:root[data-theme=dark] body{background:var(--canvas);color:var(--ink)}
+:root[data-theme=dark] button,:root[data-theme=dark] a.button,:root[data-theme=dark] summary.button{background:#18202b;border-color:var(--line);color:var(--ink)}
+:root[data-theme=dark] button:hover,:root[data-theme=dark] a.button:hover,:root[data-theme=dark] summary.button:hover{background:#1f2834;border-color:#36404f}
+:root[data-theme=dark] .primary,:root[data-theme=dark] button.primary,:root[data-theme=dark] a.button.primary{background:#e7ebf1;color:#0c1016;border-color:#e7ebf1}
+:root[data-theme=dark] .primary:hover,:root[data-theme=dark] button.primary:hover,:root[data-theme=dark] a.button.primary:hover{background:#ffffff;border-color:#ffffff;color:#0c1016}
+:root[data-theme=dark] .sidebar{background:#10151d}
+:root[data-theme=dark] .topbar{background:#10151dee}
+:root[data-theme=dark] .nav-item,:root[data-theme=dark] .top-link{color:#a3adbd}
+:root[data-theme=dark] .nav-item:hover{background:#18202b}
+:root[data-theme=dark] .nav-item.active{background:#1c2430;color:var(--ink)}
+:root[data-theme=dark] .top-link:hover,:root[data-theme=dark] .top-link.active{color:var(--ink)}
+:root[data-theme=dark] .search{background:#161d27;border-color:var(--line)}
+:root[data-theme=dark] .search:focus-within{background:#1a222d;border-color:#3a4556}
+:root[data-theme=dark] .search kbd{background:#232c39;color:var(--muted)}
+:root[data-theme=dark] .bell,:root[data-theme=dark] .theme-toggle,:root[data-theme=dark] .profile{background:transparent;color:#a3adbd}
+:root[data-theme=dark] .bell:hover,:root[data-theme=dark] .theme-toggle:hover,:root[data-theme=dark] .profile:hover{background:#18202b}
+:root[data-theme=dark] .bell-count,:root[data-theme=dark] .bell-dot{border-color:#10151d}
+:root[data-theme=dark] .search-pop,:root[data-theme=dark] .bell-menu,:root[data-theme=dark] .profile-menu,:root[data-theme=dark] .menu .items{background:#161d27;border-color:var(--line);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+:root[data-theme=dark] .bell-item{border-color:var(--line)}
+:root[data-theme=dark] .bell-item:hover,:root[data-theme=dark] .sr-item:hover,:root[data-theme=dark] .sr-item.active,:root[data-theme=dark] .profile-menu a:hover,:root[data-theme=dark] .profile-menu button:hover,:root[data-theme=dark] .menu .items a:hover,:root[data-theme=dark] .menu .items button:hover{background:#1f2834}
+:root[data-theme=dark] .profile-menu a,:root[data-theme=dark] .profile-menu button,:root[data-theme=dark] .menu .items a,:root[data-theme=dark] .menu .items button{background:transparent;color:var(--ink)}
+:root[data-theme=dark] .bell-foot,:root[data-theme=dark] .chain-row{background:#121821}
+:root[data-theme=dark] .avatar{background:#2a3446}
+:root[data-theme=dark] .hero{border-color:var(--line);background-color:#121821}
+:root[data-theme=dark] .hero:before{background:linear-gradient(90deg,#0f141c 0%,#0f141c 36%,rgba(15,20,28,.93) 50%,rgba(15,20,28,.55) 74%,rgba(15,20,28,.15) 100%)}
+:root[data-theme=dark] .hero p,:root[data-theme=dark] .hero .gen,:root[data-theme=dark] .hero-quote,:root[data-theme=dark] .hero .eyebrow,:root[data-theme=dark] .eyebrow{color:#aab4c3}
+:root[data-theme=dark] .stat,:root[data-theme=dark] .panel{background:var(--surface);border-color:var(--line)}
+:root[data-theme=dark] .stat small,:root[data-theme=dark] .task-cell small,:root[data-theme=dark] th{color:var(--muted)}
+:root[data-theme=dark] th{background:#161d27;border-color:var(--line)}
+:root[data-theme=dark] td{border-color:#1f2733}
+:root[data-theme=dark] tbody tr:hover,:root[data-theme=dark] tr.row-link:hover{background:#18202b}
+:root[data-theme=dark] .stat-icon.gray,:root[data-theme=dark] .sr-item .sr-icon,:root[data-theme=dark] .step-num{background:#1f2834;color:#a3adbd}
+:root[data-theme=dark] .stat-icon.green,:root[data-theme=dark] .data{background:rgba(67,201,139,.14);color:#5fd6a0}
+:root[data-theme=dark] .stat-icon.blue,:root[data-theme=dark] .code{background:rgba(122,162,255,.15);color:#8fb1ff}
+:root[data-theme=dark] .stat-icon.amber,:root[data-theme=dark] .design{background:rgba(224,168,74,.15);color:#e8b866}
+:root[data-theme=dark] .stat-icon.red{background:rgba(240,122,140,.15);color:#f38d9d}
+:root[data-theme=dark] .research{background:rgba(160,120,255,.15);color:#b79bff}
+:root[data-theme=dark] .automation{background:rgba(140,120,240,.16);color:#a998ff}
+:root[data-theme=dark] .completed,:root[data-theme=dark] .pill.ok,:root[data-theme=dark] .delivery-badge{background:rgba(67,201,139,.14);color:#5fd6a0}
+:root[data-theme=dark] .in-progress,:root[data-theme=dark] .pill.blue{background:rgba(122,162,255,.15);color:#8fb1ff}
+:root[data-theme=dark] .failed,:root[data-theme=dark] .pill.err{background:rgba(240,122,140,.15);color:#f38d9d}
+:root[data-theme=dark] .queued,:root[data-theme=dark] .pill.neutral{background:#1f2834;color:#a3adbd}
+:root[data-theme=dark] .pill.warn,:root[data-theme=dark] .delivery-badge.warn{background:rgba(224,168,74,.15);color:#e8b866}
+:root[data-theme=dark] .stat strong.good,:root[data-theme=dark] .available,:root[data-theme=dark] .msg .body .ok-line{color:#5fd6a0}
+:root[data-theme=dark] .stat strong.bad,:root[data-theme=dark] .msg .body .bad-line,:root[data-theme=dark] .pm-danger,:root[data-theme=dark] .auth-error{color:#f38d9d}
+:root[data-theme=dark] .busy,:root[data-theme=dark] .msg .body .find-line{color:#e8b866}
+:root[data-theme=dark] .agent-card,:root[data-theme=dark] .quick-item{background:#161d27;border-color:var(--line)}
+:root[data-theme=dark] .avatars .avatar{border-color:var(--surface)}
+:root[data-theme=dark] .filter.active{background:#e7ebf1;color:#0c1016;border-color:#e7ebf1}
+:root[data-theme=dark] .filter.active b{color:#4b5566}
+:root[data-theme=dark] .text-button{background:transparent;color:var(--muted)}
+:root[data-theme=dark] .text-button:hover{background:transparent;color:var(--ink)}
+:root[data-theme=dark] .tool-chip{background:#1f2834;color:#a3adbd}
+:root[data-theme=dark] .tool-chip.running{background:rgba(122,162,255,.15);color:#8fb1ff}
+:root[data-theme=dark] .tool-chip.error{background:rgba(240,122,140,.15);color:#f38d9d}
+:root[data-theme=dark] .msg{border-color:#1f2733}
+:root[data-theme=dark] .msg.user .body{background:#16203a;border-color:#22305a}
+:root[data-theme=dark] .msg.compact .view,:root[data-theme=dark] button.speak,:root[data-theme=dark] button.mic{background:#18202b;border-color:var(--line);color:var(--muted)}
+:root[data-theme=dark] .msg.compact .toggle{background:transparent;color:var(--blue)}
+:root[data-theme=dark] pre,:root[data-theme=dark] .msg .body pre,:root[data-theme=dark] .activity-detail,:root[data-theme=dark] .delivery-section pre{background:#0f141c;border-color:var(--line);color:#c9d1dd}
+:root[data-theme=dark] .activity-item,:root[data-theme=dark] .panel-head,:root[data-theme=dark] .dialog-footer,:root[data-theme=dark] .delivery-meta{border-color:var(--line)}
+:root[data-theme=dark] .activity-item:not(:last-child):before,:root[data-theme=dark] .balance-line,:root[data-theme=dark] .step:not(:last-child):after{background:var(--line)}
+:root[data-theme=dark] .step.done:not(:last-child):after{background:var(--green)}
+:root[data-theme=dark] .step .dot{background:var(--surface);border-color:#3a4556}
+:root[data-theme=dark] .step.done .dot{background:var(--green);border-color:var(--green)}
+:root[data-theme=dark] .notice{background:rgba(224,168,74,.08);border-color:rgba(224,168,74,.28);color:#e3c58e}
+:root[data-theme=dark] .demo-label{border-color:var(--line)}
+:root[data-theme=dark] footer{color:var(--muted)}
+:root[data-theme=dark] dialog,:root[data-theme=dark] .auth-card,:root[data-theme=dark] .guide-bubble{background:#141a24;border-color:var(--line);color:var(--ink)}
+:root[data-theme=dark] form input,:root[data-theme=dark] form textarea,:root[data-theme=dark] form select,:root[data-theme=dark] #topup-amount{background:#0f141c;border-color:#2c3542;color:var(--ink)}
+:root[data-theme=dark] .auth-overlay{background:linear-gradient(160deg,#0f141c,#121a26)}
+:root[data-theme=dark] .auth-tabs{background:#1a222d}
+:root[data-theme=dark] .auth-tab{background:transparent}
+:root[data-theme=dark] .auth-tab.active{background:#262f3c;color:var(--ink)}
+:root[data-theme=dark] .welcome-card{background:linear-gradient(#141a24,#141a24) padding-box,conic-gradient(from var(--welcome-angle,0deg),#7ef0b0,#6fa8ff,#c9a5ff,#ffd27a,#7ef0b0) border-box}
+:root[data-theme=dark] .welcome-card:after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}
+:root[data-theme=dark] .welcome-card p,:root[data-theme=dark] .guide-bubble p{color:#aab4c3}
+:root[data-theme=dark] .guide-actions button,:root[data-theme=dark] .topup-presets button,:root[data-theme=dark] .icon-button{color:var(--ink)}
+:root[data-theme=dark] .icon-button{background:transparent}
+:root[data-theme=dark] .topup-presets button.eur.active{background:rgba(122,162,255,.15);border-color:#7aa2ff;color:#a9c3ff}
+:root[data-theme=dark] .hero:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 220px at 100% 0%,rgba(10,14,20,.78),rgba(10,14,20,0) 75%)}
+:root[data-theme=dark] .hero-quote{z-index:1;color:#eef1f6;text-shadow:0 1px 10px rgba(0,0,0,.85)}
+:root[data-theme=dark] .hero-quote .dash{background:#cfd6e0}
+:root[data-theme=dark] .search input{background:transparent;color:var(--ink)}
+:root[data-theme=dark] .search input::placeholder{color:var(--muted)}
+
+/* ---------- motion (shared verbatim by frontend/style.css and ui.py SITE_CSS) ---------- */
+@keyframes lux-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes lux-drift{from{background-position:100% 50%}to{background-position:72% 46%}}
+@keyframes lux-pop{0%{transform:rotate(-120deg) scale(.4);opacity:0}70%{transform:rotate(12deg) scale(1.12)}100%{transform:none;opacity:1}}
+@keyframes lux-ping{0%{box-shadow:0 0 0 0 currentColor}100%{box-shadow:0 0 0 5px transparent}}
+.anim-in{animation:lux-rise .6s cubic-bezier(.2,.8,.2,1) both}
+.hero{animation:lux-drift 28s ease-in-out infinite alternate}
+.theme-toggle svg{animation:lux-pop .55s cubic-bezier(.2,.9,.3,1.2)}
+.stat,.agent-card,.quick-item,.panel{transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.stat:hover,.agent-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(16,24,40,.09);border-color:#d5dbe4}
+:root[data-theme=dark] .stat:hover,:root[data-theme=dark] .agent-card:hover{box-shadow:0 10px 28px rgba(0,0,0,.45);border-color:#36404f}
+.stat-icon,.agent-icon{transition:transform .25s ease}
+.stat:hover .stat-icon,.agent-card:hover .agent-icon,tr:hover .agent-icon{transform:scale(1.08) rotate(-4deg)}
+.available:before,.pill.ok:before,.completed:before{animation:lux-ping 1.8s ease-out infinite;border-radius:50%}
+a.button,button,.filter,.nav-item,.top-link{transition:background-color .18s ease,border-color .18s ease,color .18s ease,transform .12s ease}
+a.button:active,button:active{transform:scale(.97)}
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
+@media (prefers-reduced-motion:reduce){
+  .anim-in,.hero,.theme-toggle svg,.available:before,.pill.ok:before,.completed:before{animation:none!important}
+  .stat:hover,.agent-card:hover,a.button:active,button:active{transform:none}
+}

@@ -7,7 +7,7 @@
 <title>LUX AGENTS · Workspace</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
   <link rel="alternate icon" href="favicon.ico?v=1">
-<link rel="stylesheet" href="style.css?v=30">
+<link rel="stylesheet" href="style.css?v=31">
 </head>
 <body>
 <aside class="sidebar">
@@ -143,6 +143,12 @@
         <div class="panel-head"><h2>Conversation</h2><span class="text-muted" id="conv-count"></span></div>
         <div class="tool-strip" id="tool-strip"></div>
         <div id="messages"></div>
+        <div class="agent-live" id="agent-live" hidden>
+          <span class="agent-live-dot" aria-hidden="true"></span>
+          <span class="agent-live-text">Agent is working…</span>
+          <span class="agent-live-step" id="agent-live-step"></span>
+          <span class="agent-live-time" id="agent-live-time">0.0s</span>
+        </div>
       </section>
 
       <section class="panel" id="agents">
@@ -311,6 +317,6 @@
   </div>
 </dialog>
 
-<script src="app.js?v=30"></script>
+<script src="app.js?v=31"></script>
 </body>
 </html>

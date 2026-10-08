@@ -219,6 +219,14 @@ function renderChat(messages) {
       return;
     }
 
+    if (message.role === "Tool") {
+      const note = document.createElement("div");
+      note.className = "msg tool-note";
+      note.textContent = content;
+      box.append(note);
+      return;
+    }
+
     const row = document.createElement("div");
     row.className = "msg " + (message.role === "You" ? "user" : "agent");
     const role = document.createElement("div");
@@ -308,6 +316,30 @@ const TASK_BADGE = {
 
 function taskBadge(state) {
   return TASK_BADGE[state] || { label: state ? state.charAt(0) + state.slice(1).toLowerCase() : "Pending", cls: "running" };
+}
+
+let liveSince = 0;
+
+// Živý pruh pod chatem: je vidět, že agent právě pracuje a co dělá.
+function renderLive(st) {
+  const live = $("agent-live");
+  if (!st.busy) {
+    if (!live.hidden) live.hidden = true;
+    liveSince = 0;
+    return;
+  }
+  if (!liveSince) liveSince = Date.now();
+  live.hidden = false;
+  const tools = (fullState && fullState.tools) || [];
+  const running = tools.filter((tool) => String(tool.summary || "").startsWith("RUNNING"));
+  const current = running.length ? running[running.length - 1] : (tools.length ? tools[tools.length - 1] : null);
+  let step = "thinking…";
+  if (current) {
+    const parts = String(current.summary || "").split(" · ");
+    step = (parts[1] || "tool") + (parts[2] ? " · " + parts[2] : "");
+  }
+  $("agent-live-step").textContent = step;
+  $("agent-live-time").textContent = ((Date.now() - liveSince) / 1000).toFixed(1) + "s";
 }
 
 function renderTasks(payments) {
@@ -1291,6 +1323,7 @@ async function poll() {
     renderWallet(st);
     renderStats(st);
     renderQuestion(st);
+    renderLive(st);
     if (Date.now() >= noticeUntil) {
       $("status-line").textContent = autoQueue.length ? `Auto demo · step ${Math.min(AUTO_STEPS.length - autoQueue.length, AUTO_STEPS.length)}/${AUTO_STEPS.length}`
         : (st.busy ? "⟳ " : "") + st.status;

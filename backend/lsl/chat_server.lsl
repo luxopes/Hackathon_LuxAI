@@ -429,6 +429,18 @@ function progress(event):
         if action == "TOOL_STARTED" or action == "TOOL_FINISHED":
             call upsert(state["tools"], prepared)
             state["audit_revision"] += 1
+            # Dokončené volání zapíšeme i do konverzace, ať je vidět, co agent dělá.
+            if action == "TOOL_FINISHED":
+                mark = "✔"
+                if String(data.get("status", "OK")) == "ERROR":
+                    mark = "✖"
+                end
+                duration = ""
+                if "duration_ms" in data:
+                    duration = " · " + String(data["duration_ms"]) + " ms"
+                end
+                call append_message("Tool", mark + " " + String(data.get("name", "tool")) + " · " + String(data.get("source", "")) + duration, owner)
+            end
         elif action == "PAYMENT_UPDATED":
             call upsert(state["payments"], prepared)
             state["audit_revision"] += 1

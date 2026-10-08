@@ -1345,7 +1345,9 @@ document.querySelectorAll("#stripe-presets .usd").forEach((button) => button.add
 $("stripe-pay").addEventListener("click", payByCard);
 $("question-send").addEventListener("click", () => answerQuestion($("question-answer").value));
 $("question-decide").addEventListener("click", () => answerQuestion("Use your best judgement and continue autonomously."));
-$("question-close").addEventListener("click", () => { $("question-dialog").close(); });
+// Dotaz se zavírá jen odpovědí: agent je na něm skutečně blokovaný.
+$("question-dialog").addEventListener("cancel", (event) => event.preventDefault());
+$("question-dialog").addEventListener("close", () => { if (openQuestion) renderQuestion(latest); });
 $("dialog-close").addEventListener("click", () => $("task-dialog").close());
 $("dialog-cancel").addEventListener("click", () => $("task-dialog").close());
 $("task-form").addEventListener("submit", (event) => { event.preventDefault(); submitTask(); });

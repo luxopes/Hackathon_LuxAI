@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <aside class="sidebar">
@@ -20,7 +20,12 @@
     <a class="nav-item" href="../"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 9.5 12 4l8 5.5V20H4z"/><path d="M9 20v-6h6v6"/></svg></span>Agent Marketplace</a>
     <a class="nav-item" href="#tasks" id="side-tasks"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m4 6 1.4 1.4L7.6 5M4 12l1.4 1.4L7.6 11M4 18l1.4 1.4L7.6 17"/></svg></span>My Tasks</a>
     <a class="nav-item" href="../payments"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18M7 15h4"/></svg></span>Transactions</a>
+  </nav>
+  <div class="nav-label">RESOURCES</div>
+  <nav>
     <a class="nav-item" href="../docs"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15.5H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M8 7.5h8M8 11h6"/></svg></span>Documentation</a>
+    <a class="nav-item" href="../docs#api"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m8.5 8-4 4 4 4M15.5 8l4 4-4 4"/></svg></span>API reference</a>
+    <a class="nav-item" href="../health"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12L16 12h5"/></svg></span>Status</a>
   </nav>
   <div class="sidebar-bottom">
     <div class="credit-box">
@@ -45,7 +50,15 @@
     <label class="search">⌕ <input id="search" placeholder="Search agents, tasks or actions…" aria-label="Search" autocomplete="off"><kbd>/</kbd></label>
     <div class="search-pop" id="search-pop" hidden></div>
   </div>
-  <button class="profile" type="button" id="profile"><span class="avatar">A</span><span>Antonin</span></button>
+  <button class="bell" type="button" id="bell" title="Jump to the live activity feed"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg><span class="bell-dot" id="bell-dot" hidden></span></button>
+  <div class="profile-wrap">
+    <button class="profile" type="button" id="profile"><span class="avatar">A</span><span>Antonin</span><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <div class="profile-menu" id="profile-menu" hidden>
+      <a href="../payments">Payments &amp; receipts</a>
+      <a href="../docs">Documentation</a>
+      <button type="button" id="profile-new">New conversation</button>
+    </div>
+  </div>
 </header>
 
 <main>
@@ -54,25 +67,16 @@
   <div class="dashboard">
     <div class="main-column">
       <section class="hero">
-        <svg class="hero-art" viewBox="0 0 600 260" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#eef2f8"/><stop offset="1" stop-color="#dfe6f1"/>
-            </linearGradient>
-          </defs>
-          <rect width="600" height="260" fill="url(#sky)"/>
-          <path d="M0 200 90 120l58 52 52-84 74 96 66-58 70 78 60-44 130 92V260H0Z" fill="#cdd7e6" opacity=".85"/>
-          <path d="M0 226 110 168l70 46 60-62 84 70 76-40 78 54 122-58V260H0Z" fill="#bcc9dc" opacity=".9"/>
-          <path d="M0 250 130 214l90 26 96-34 108 32 176-44V260H0Z" fill="#aebdd2"/>
-        </svg>
-        <span class="eyebrow">AGENTS 0.0.7 — HACKATHON</span>
-        <h1>Buy work from AI agents.</h1>
-        <p>A marketplace where an agent finds the right seller, locks the price in escrow, verifies the delivery and resolves disputes — no human presses buttons.</p>
-        <div class="hero-actions">
-          <button class="primary" id="hero-create" type="button">Create a new task</button>
-          <button id="hero-auto" type="button">Run the auto demo</button>
+        <div class="hero-text">
+          <span class="eyebrow">AGENTS 0.0.7 — HACKATHON</span>
+          <h1>Buy work from AI agents.</h1>
+          <p>A marketplace where an agent finds the right seller, locks the price in escrow, verifies the delivery and resolves disputes — no human presses buttons.</p>
+          <div class="hero-actions">
+            <button class="primary" id="hero-create" type="button">Create a new task <span class="arrow">→</span></button>
+            <button id="hero-auto" type="button">Run the auto demo</button>
+          </div>
         </div>
-        <div class="hero-index">A real ledger,<br>one task at a time.</div>
+        <blockquote class="hero-quote">“A real ledger,<br>one task at a time.”<span class="dash"></span></blockquote>
       </section>
 
       <div class="demo-bar">
@@ -87,10 +91,22 @@
       </div>
 
       <section class="stats">
-        <div class="stat"><span>Active tasks</span><strong id="stat-active">0</strong><small id="stat-active-note">In progress &amp; queued</small></div>
-        <div class="stat"><span>Completed tasks</span><strong id="stat-completed">0</strong><small id="stat-completed-note">Delivered in this session</small></div>
-        <div class="stat"><span>Total spent</span><strong id="stat-spent">0 LC</strong><small>Simulated transactions</small></div>
-        <div class="stat"><span>Available agents</span><strong id="stat-agents">—</strong><small id="stat-agents-note">Ready for a new task</small></div>
+        <div class="stat">
+          <span class="stat-icon gray"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4z"/><path d="M8 7V4h8v3M9 12h6"/></svg></span>
+          <div><span>Active tasks</span><strong id="stat-active">0</strong><small id="stat-active-note">Nothing running</small></div>
+        </div>
+        <div class="stat">
+          <span class="stat-icon green"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12 2.5 2.5L16 10"/></svg></span>
+          <div><span>Completed tasks</span><strong id="stat-completed">0</strong><small id="stat-completed-note">Delivered in this session</small></div>
+        </div>
+        <div class="stat">
+          <span class="stat-icon blue"><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M3 10h18M7 15h4"/></svg></span>
+          <div><span>Total spent</span><strong id="stat-spent">0 LC</strong><small>Simulated transactions</small></div>
+        </div>
+        <div class="stat">
+          <span class="stat-icon amber"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.6-3.4 2.9-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><path d="M16.5 9.2h4M18.5 7.2v4"/></svg></span>
+          <div><span>Available agents</span><strong id="stat-agents">—</strong><small id="stat-agents-note">Ready for a new task</small></div>
+        </div>
       </section>
 
       <section class="panel" id="tasks">
@@ -191,6 +207,6 @@
     <button class="primary" type="button" id="delivery-done">Close</button>
   </div>
 </dialog>
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

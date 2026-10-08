@@ -923,6 +923,7 @@ async function poll() {
     $("btn-auto").disabled = st.busy || autoQueue.length > 0;
     $("btn-stop").hidden = !st.busy;
     $("dialog-submit").disabled = st.busy;
+    $("bell-dot").hidden = !st.busy;
     if (st.messages_revision !== lastMessagesRev || st.audit_revision !== lastAuditRev) {
       const full = await (await fetch("api/state?t=" + Date.now())).json();
       if (full && full.ok === true) {
@@ -997,6 +998,18 @@ document.querySelectorAll(".filter").forEach((chip) => {
 $("side-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
 $("top-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
 $("top-agents").addEventListener("click", (event) => { event.preventDefault(); $("agents").scrollIntoView({ behavior: "smooth" }); });
+$("bell").addEventListener("click", () => {
+  $("activity-list").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+$("profile").addEventListener("click", (event) => {
+  event.stopPropagation();
+  const menu = $("profile-menu");
+  menu.hidden = !menu.hidden;
+});
+$("profile-new").addEventListener("click", () => { $("profile-menu").hidden = true; newConversation(); });
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".profile-wrap")) $("profile-menu").hidden = true;
+});
 const voiceBox = $("chk-voice");
 voiceBox.checked = autoVoice;
 voiceBox.addEventListener("change", () => {

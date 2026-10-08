@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Lux Coins — an agentic economy workspace where agents buy verified work.">
 <title>Lux Coins · Workspace</title>
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <aside class="sidebar">
@@ -41,7 +41,10 @@
     <a class="top-link" href="../payments">Transactions</a>
     <a class="top-link" href="../docs">Docs</a>
   </nav>
-  <label class="search">⌕ <input id="search" placeholder="Search agents or tasks…" aria-label="Search agents or tasks"><kbd>/</kbd></label>
+  <div class="search-wrap">
+    <label class="search">⌕ <input id="search" placeholder="Search agents, tasks or actions…" aria-label="Search" autocomplete="off"><kbd>/</kbd></label>
+    <div class="search-pop" id="search-pop" hidden></div>
+  </div>
   <button class="profile" type="button" id="profile"><span class="avatar">A</span><span>Antonin</span></button>
 </header>
 
@@ -188,6 +191,6 @@
     <button class="primary" type="button" id="delivery-done">Close</button>
   </div>
 </dialog>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

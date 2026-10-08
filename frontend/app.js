@@ -798,6 +798,95 @@ function autoTick(st) {
     .catch(() => { autoQueue.unshift(message); autoNextAt = Date.now() + 6000; });
 }
 
+/* ---------- search with results under the field ---------- */
+const SEARCH_PAGES = [
+  { title: "Payments", sub: "Every settled purchase with its receipt", url: "../payments" },
+  { title: "Documentation", sub: "Architecture, API and invariants", url: "../docs" },
+  { title: "Marketplace overview", sub: "Offers, sessions and the ledger invariant", url: "../" },
+];
+
+function searchItems(term) {
+  const needle = term.trim().toLowerCase();
+  if (needle.length < 2) return [];
+  const groups = [];
+  const label = (capability) => (CAPABILITY[capability] || {}).label || "Service";
+
+  const tasks = ((fullState && fullState.payments) || []).map(parsePayment)
+    .filter((payment) => (payment.job + " " + payment.seller + " " + label(payment.capability) + " " + payment.state
+      + " " + payment.amount + " lc").toLowerCase().includes(needle))
+    .slice(0, 5)
+    .map((payment) => ({ icon: ICON[payment.capability] || ICON.agent, title: label(payment.capability) + " · " + payment.amount + " LC",
+                         sub: payment.job + " · " + payment.seller + " · " + payment.state, action: () => openDelivery(payment.id) }));
+  if (tasks.length) groups.push({ label: "Your tasks", items: tasks });
+
+  const sellerMap = offers.list.length ? offers.sellers : FALLBACK_SELLERS;
+  const sellers = Object.values(sellerMap)
+    .filter((seller) => (seller.name + " " + seller.offers.map((offer) => label(offer.capability)).join(" ")).toLowerCase().includes(needle))
+    .slice(0, 5)
+    .map((seller) => ({ icon: ICON[seller.offers[0].capability] || ICON.agent, title: seller.name,
+                        sub: "from " + seller.offers[0].price + " LC · " + seller.offers.map((offer) => label(offer.capability)).slice(0, 3).join(", "),
+                        action: () => openDialog(seller.offers[0].capability, seller) }));
+  if (sellers.length) groups.push({ label: "Agents", items: sellers });
+
+  const actions = QUICK.map((capability) => CAPABILITY[capability])
+    .filter((meta) => (meta.label + " " + meta.short + " " + meta.prompt).toLowerCase().includes(needle))
+    .slice(0, 5)
+    .map((meta) => ({ icon: ICON[Object.keys(CAPABILITY).find((key) => CAPABILITY[key] === meta)] || ICON.agent,
+                      title: meta.label, sub: meta.short, action: () => {
+                        const capability = Object.keys(CAPABILITY).find((key) => CAPABILITY[key] === meta);
+                        openDialog(capability);
+                      } }));
+  if (actions.length) groups.push({ label: "Start a task", items: actions });
+
+  const pages = SEARCH_PAGES.filter((page) => (page.title + " " + page.sub).toLowerCase().includes(needle))
+    .map((page) => ({ icon: '<svg viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8"/></svg>', title: page.title, sub: page.sub,
+                      action: () => { window.location.href = page.url; } }));
+  if (pages.length) groups.push({ label: "Pages", items: pages });
+
+  return groups.slice(0, 4);
+}
+
+function renderSearchPop() {
+  const pop = $("search-pop");
+  const groups = searchItems($("search").value);
+  pop.replaceChildren();
+  if (!groups.length) {
+    if ($("search").value.trim().length >= 2) {
+      const empty = document.createElement("div");
+      empty.className = "sr-empty";
+      empty.textContent = "No results for “" + $("search").value.trim() + "”.";
+      pop.append(empty);
+      pop.hidden = false;
+    } else {
+      pop.hidden = true;
+    }
+    return;
+  }
+  for (const group of groups) {
+    const head = document.createElement("div");
+    head.className = "sr-group";
+    head.textContent = group.label;
+    pop.append(head);
+    for (const item of group.items) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sr-item";
+      const icon = document.createElement("span");
+      icon.className = "sr-icon";
+      icon.innerHTML = item.icon;
+      const text = document.createElement("span");
+      text.className = "sr-text";
+      text.innerHTML = "<b>" + esc(item.title) + "</b><small>" + esc(item.sub) + "</small>";
+      button.append(icon, text);
+      button.addEventListener("click", () => { hideSearchPop(); item.action(); });
+      pop.append(button);
+    }
+  }
+  pop.hidden = false;
+}
+
+function hideSearchPop() { const pop = $("search-pop"); if (pop) pop.hidden = true; }
+
 /* ---------- data loading and polling ---------- */
 async function loadOffers() {
   try {
@@ -879,6 +968,20 @@ $("search").addEventListener("input", (event) => {
   searchTerm = event.target.value.trim().toLowerCase();
   if (fullState) renderTasks(fullState.payments || []);
   renderAgents();
+  renderSearchPop();
+});
+$("search").addEventListener("focus", renderSearchPop);
+$("search").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    const first = document.querySelector("#search-pop .sr-item");
+    if (first) { event.preventDefault(); hideSearchPop(); first.click(); }
+  } else if (event.key === "Escape") {
+    hideSearchPop();
+    $("search").blur();
+  }
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".search-wrap")) hideSearchPop();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "/" && document.activeElement !== $("search")) { event.preventDefault(); $("search").focus(); }

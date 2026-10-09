@@ -171,7 +171,7 @@ const DELIVERY_RE = /^(?:Done|Hotovo) · /;
 function deliveryPayment(headerLine) {
   const parts = headerLine.split(" · ");
   const seller = parts[1];
-  const amount = parseInt((parts[2] || "").replace(/[^0-9]/g, ""), 10);
+  const amount = money(parts[2]);
   const payments = (fullState && fullState.payments) || [];
   for (let index = payments.length - 1; index >= 0; index -= 1) {
     const payment = parsePayment(payments[index]);
@@ -293,7 +293,7 @@ function parsePayment(entry) {
     stamp = matches.length ? matches[matches.length - 1][1] : "";
   }
   const offer = offers.byId[pick("Offer: ")] || {};
-  const amount = parseInt((parts[1] || "0").replace(/[^0-9]/g, ""), 10) || 0;
+  const amount = money(parts[1]);
   return { id: entry.id, state: parts[0] || "", amount, seller: parts[2] || "", job: parts[3] || entry.id,
            capability: offer.capability || "short-research", stamp };
 }
@@ -869,6 +869,14 @@ async function newConversation() {
 function usd(amount) {
   const value = Number(amount);
   return "$" + (Number.isFinite(value) ? value.toFixed(2) : "0.00");
+}
+
+// Peníze ze serveru chodí jako text ("$7.00"), takže se musí parsovat i s
+// desetinnou částí — pouhé odstranění nečíslic by z "$7.00" udělalo 700.
+function money(text) {
+  const match = String(text == null ? "" : text).match(/\d+(?:\.\d+)?/);
+  const value = match ? parseFloat(match[0]) : 0;
+  return Number.isFinite(value) ? value : 0;
 }
 
 const AUTO_STEPS = ["What is on offer right now and at what prices?", "Please audit the marketplace demo cart."];

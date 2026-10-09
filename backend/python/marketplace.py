@@ -738,7 +738,7 @@ class Market:
         with self.db() as db:
             accounts = [dict(row) for row in db.execute("SELECT seller_id, account_id FROM stripe_accounts ORDER BY seller_id")]
             transfers = [dict(row) for row in db.execute(
-                "SELECT job_id, seller_id, transfer_id, amount_cents, status, detail FROM stripe_transfers ORDER BY created DESC LIMIT 10")]
+                "SELECT job_id, seller_id, transfer_id, amount_cents, currency, status, detail FROM stripe_transfers ORDER BY created DESC LIMIT 10")]
         return {"enabled": self.connect_enabled, "currency": self.connect_currency, "accounts": accounts,
                 "transfers": transfers, "available": self.connect_balance(self.connect_currency) if self.connect_enabled else None,
                 "hint": "" if self.connect_enabled else "Enable Connect in the Stripe dashboard, then set stripe_connect_enabled in market.json"}

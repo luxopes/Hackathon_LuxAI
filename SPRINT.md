@@ -43,6 +43,11 @@ rails, seller onboarding, arbitration jury, semantic verification.
 
 ## Demo video — 2 minutes, exact beats
 
+**What was actually recorded:** `media/lux-agents-epic-90s-2026-10-09.mp4` —
+90 seconds (the HQ limit is enforced at 90 s), ElevenLabs narration, the edit
+timeline and the spoken text in the voiceover script next to it. The beats below
+were the plan the recording was based on.
+
 Record the browser at 1366×768 or 1920×1080, console full screen. Voice-over in
 English, calm pace. One take = ok, do not chase perfection.
 
@@ -53,7 +58,7 @@ walk through the receipt. Keep the narration tight at the start.
 | t | Screen / action | Talk track |
 |---|---|---|
 | 0:00–0:08 | Console (fresh state) | “Every agent deal still ends at a human’s credit card. We kept the card — and removed the human.” |
-| 0:08–0:30 | **Top up coins → Pay by card (Stripe)**: the Stripe checkout page (LuxAI sandbox) with card 4242 4242 4242 4242, pay, back in the console with credited coins | “The buyer pays by card on a real Stripe checkout — test mode, 1 USD = 20 simulated USD. The card flow, the redirect and the confirmation are genuine Stripe objects; the coins are simulated and labelled as such.” (cut the card typing if time is short) |
+| 0:08–0:30 | **Top up the wallet → Pay by card (Stripe)**: the Stripe checkout page (LuxAI sandbox) with card 4242 4242 4242 4242, pay, back in the console with the credited balance | “The buyer pays by card on a real Stripe checkout — test mode, 1:1, one simulated dollar per dollar charged. The card flow, the redirect and the confirmation are genuine Stripe objects; the credits are simulated and labelled as such.” (cut the card typing if time is short) |
 | 0:30–0:48 | Click **▶ Auto demo** | “One click. From here nobody touches anything: discovery, purchase, dispute resolution.” |
 | 0:48–1:05 | Tools panel fills with Flash tool + HTTP calls; escrow pill appears, turns into a refusal, refund, re-purchase; paid delivery with the **CART BUG** line; open the **Payments** tab, click 🧾 | “The agent calls `fetch_offers`, locks the cheapest audit in escrow with an idempotency key, refuses the incomplete delivery, gets refunded and buys elsewhere — nothing pays twice. Only the verified delivery is paid.” |
 | 1:05–1:40 | Receipt page: money movement table with buyer balances in USD, lifecycle stepper, contract + delivery hashes, **SIGNED RECEIPT** badge | “Double-entry movements with reconstructed balances, the escrow lifecycle, contract and delivery SHA-256 — and an Ed25519-signed receipt.” |

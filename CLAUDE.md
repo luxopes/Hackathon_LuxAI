@@ -11,8 +11,9 @@ agent discovers offered services, pays through escrow, verifies deliveries and
 resolves disputes — **without a human pressing buttons**. Key guarantees that
 are demonstrated and must never regress:
 
-* **Mocked payments are labelled SIMULATED** — test credits ("Lux Coins") in a
-  central SQLite ledger, no blockchain, no real money.
+* **Mocked payments are labelled SIMULATED** — test credits in a central
+  SQLite ledger (amounts are in USD, 1:1 with the Stripe test-mode top-up), no
+  blockchain, no real money.
 * **Caps hold** — a wallet can never spend beyond its budget.
 * **Nothing pays twice** — idempotency keys + unique constraints; one escrow
   and one settlement per job.

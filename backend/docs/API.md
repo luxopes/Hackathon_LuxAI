@@ -256,14 +256,16 @@ must **not** embed it.
   PAID | REFUNDED`, `contract`, `result`).
 * `GET /api/jobs/{id}/verify` → `{valid_delivery, reasons[], checks[]}` —
   structural verification against the agreed contract.
-* `POST /api/sessions/{id}/stripe-checkout` `{amount_eur}` → creates a Stripe
+* `POST /api/sessions/{id}/stripe-checkout` `{amount_usd}` → creates a Stripe
   **test-mode** Checkout Session in USD (1–25 USD, credited one for one) and returns
-  `{checkout_url, stripe_session_id, lux_coins}`. The card page is hosted by
+  `{checkout_url, stripe_session_id, lux_coins, amount_usd, ratio: "1:1"}`.
+  `lux_coins` is the historic name of the credited amount and always equals
+  `amount_usd`. The card page is hosted by
   Stripe; nothing is credited until `stripe-confirm`.
 * `POST /api/sessions/{id}/stripe-confirm` `{stripe_session_id}` → verifies the
   payment with Stripe and credits the wallet **once** (idempotent by the Stripe
   object id; a `STRIPE_TOPUP` row lands in the ledger).
-* `POST /api/sessions/{id}/stripe-sandbox-pay` `{amount_eur}` → server-side test
+* `POST /api/sessions/{id}/stripe-sandbox-pay` `{amount_usd}` → server-side test
   helper: creates and confirms a Stripe test payment with `pm_card_visa`
   (test keys only). Used by the console's "Simulate card payment (test)" button
   and by the automated tests.

@@ -24,6 +24,15 @@ not match, so it runs unchanged in monitoring: `proofpay-ledger-check.timer`
 executes it every five minutes on the server and the result lands in the
 journal.
 
+## Live demo
+
+* Console: <https://hackathon.lux-ai.cz/web/> — sign in with `hacker` /
+  `dusk2dawn2026` (a shared demo account, simulated money).
+* Marketplace pages: <https://hackathon.lux-ai.cz/> (overview, `/payments`,
+  `/receipt/{job_id}`, `/docs`).
+* Demo video (90 s): `media/lux-agents-epic-90s-2026-10-09.mp4`, with the
+  narration and the edit notes in the voiceover script next to it.
+
 ## Quick start (from zero)
 
 ```sh
@@ -55,9 +64,9 @@ scripts/    local run/config helpers
 
 ## Docs
 
-* **`TODO.md`** — what is left: rewrite the marketplace pages (`/`, `/payments`,
-  `/receipt/{id}`, `/docs`) in the agent-console design, and port the speech
-  sidecar from Python to LSL.
+* **`TODO.md`** — the current state: what is done, the known gaps (the LSL
+  marketplace port is not switched on, receipts signed before the currency
+  rename) and the smaller leftovers.
 
 * **`tools/verify_receipt.py`** — verify a payment receipt offline: recomputes
   the canonical payload, checks the SHA-256 and the Ed25519 signature against the
@@ -87,5 +96,6 @@ scripts/    local run/config helpers
   **Transfer** to the seller's connected account (test mode), tagged with the
   job and shown on the receipt; refunds never transfer.
 * Buyers can top up with a card through **Stripe in test mode** (Checkout); the
-  card payment is real in the sandbox, the coins it buys stay simulated and are
-  labelled as such everywhere.
+  card payment is real in the sandbox, the credits it buys are simulated and are
+  labelled as such everywhere. The rate is 1:1 — one simulated dollar per
+  dollar charged — so the amounts stay readable as USD.

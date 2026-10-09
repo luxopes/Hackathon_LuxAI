@@ -7,7 +7,8 @@ deliver real work (live web research via Apify, Python code, summaries, translat
 ideas, HTTP cart audits) and are paid only for verified deliveries.
 
 * `simulated_payments: true` is part of every API response — payments are test
-  credits ("Lux Coins") in a central SQLite ledger, not a blockchain.
+  credits in a central SQLite ledger (every displayed amount is USD, 1:1 with the
+  Stripe test-mode top-up), not a blockchain.
 * Caps hold (a wallet can never spend more than its budget).
 * Nothing pays twice (idempotency keys + unique constraints + one settlement
   per job).

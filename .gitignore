@@ -1,4 +1,35 @@
 __pycache__/
 *.pyc
+
+# local build output and virtual envs
 build/
+.venv/
+venv/
+
+# secrets and local configuration — never commit these
 .env
+.envrc
+*.key
+*.pem
+*.token
+*secret*
+
+# local data: databases, dumps, state copies, logs
+data/
+logs/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.dump
+*.sql
+console-state-*.json
+users.json
+
+# editor and OS clutter
+*.bak
+*.orig
+*.rej
+*.swp
+.DS_Store
+Thumbs.db

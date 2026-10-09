@@ -568,7 +568,11 @@ class Market:
             return
 
     # --- Stripe (test mode): karta dobije simulované USD; ledger zůstává jediné účetnictví.
-    STRIPE_USD_TO_LC = 1   # 1 jednotka = 1 USD (simulovaně), karta dobíjí 1:1
+    # 1 unit = 1 simulated USD; a card top-up credits it 1:1 (Stripe test mode).
+    # Ledger action names such as LUX_COINS_ISSUED are historic: they are stored
+    # in existing rows (and mirrored by backend/lsl/marketplace.lsl), so they
+    # keep their spelling while every displayed amount is USD.
+    STRIPE_USD_TO_LC = 1
     STRIPE_MIN_USD = 1
     STRIPE_MAX_USD = 25
 

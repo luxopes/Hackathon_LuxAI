@@ -412,6 +412,12 @@ function renderWallet(st) {
   $("balance-total").innerHTML = available === null ? "—" : "<small>$</small>" + Number(available + locked).toFixed(2);
   $("balance-note").textContent = available === null ? "Simulated US dollars"
     : `available ${usd(available)} · in escrow ${usd(locked)}${budget ? " · budget " + usd(budget) : ""} · simulated`;
+  if (account) {
+    // Hlavička účtu v menu: živý zůstatek (mění se s platbami) a k tomu strop účtu.
+    $("pm-budget").textContent = available === null
+      ? (budget ? "budget " + usd(budget) + " · no wallet yet" : "no wallet yet")
+      : "balance " + usd(available) + (budget ? " · budget " + usd(budget) : "");
+  }
   $("balance-bar").style.width = available === null || !budget ? "100%" : Math.min(100, Math.round(((available + locked) / budget) * 100)) + "%";
   const field = $("task-budget");
   if (available === null) {
@@ -1036,7 +1042,7 @@ const GUIDE_STEPS = [
   { sel: "#tasks", title: "Your tasks", text: "Every purchase of this conversation. Click a row to open the delivered artifact, or the receipt for the full ledger trail." },
   { sel: "#conversation", title: "The conversation", text: "The agent's replies plus a compact strip of the tool calls it really made." },
   { sel: "#activity-list", title: "Live activity", text: "Every Flash, HTTP and LSL call with its duration. Click a name to see the raw input and output." },
-  { sel: "#profile", title: "Your account", text: "Top up simulated coins, open transactions, or sign out." },
+  { sel: "#profile", title: "Your account", text: "Top up simulated credits, open transactions, or sign out." },
 ];
 let guideIndex = 0;
 let stripeUsd = 1;
@@ -1495,6 +1501,11 @@ function handleIncomingHash() {
     // "Create Task" z marketplace: otevřít dialog místo skoku na neexistující kotvu.
     const button = $("side-create");
     if (button) button.click();
+    return;
+  }
+  if (id === "wallet") {
+    // "Top up wallet" z marketplace: otevřít dialog dobíjení.
+    openTopUp();
     return;
   }
   jumpToSection(id);

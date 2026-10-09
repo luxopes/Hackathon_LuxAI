@@ -99,6 +99,9 @@ a.button:hover,summary.button:hover{background:#f3f5f8;border-color:#ccd3dd}
 .profile-menu{position:absolute;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 18px 45px rgba(16,24,40,.14);padding:6px;min-width:210px;z-index:40}
 .profile-menu a{display:block;padding:9px 11px;border-radius:7px;font-size:12.5px}
 .profile-menu a:hover{background:#f4f6f9}
+.profile-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 11px;border-radius:7px;font-size:12.5px;font-family:inherit;color:inherit;cursor:pointer}
+.profile-menu button:hover{background:#f4f6f9}
+.profile-menu button.pm-danger{color:#bf384d}
 .pm-head{padding:8px 11px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
 .pm-head b{display:block;font-size:13px}
 .pm-head span{color:var(--muted);font-size:11.5px}
@@ -559,8 +562,10 @@ def shell(base, active, crumbs, content, search_hint="Search payments, sellers�
     <div class="profile-menu" id="profile-menu" hidden>
       <div class="pm-head"><b id="pm-username">Guest</b><span id="pm-budget">not signed in</span></div>
       <a href="{console}" id="pm-console">Sign in to the agent console</a>
+      <a href="{console}#wallet" id="pm-topup">Top up wallet ＋</a>
       <a href="{base}payments">Payments &amp; receipts</a>
       <a href="{base}docs">Documentation</a>
+      <button type="button" id="pm-logout" class="pm-danger" hidden>Sign out</button>
     </div>
   </div>
 </header>
@@ -604,7 +609,15 @@ def shell(base, active, crumbs, content, search_hint="Search payments, sellers�
   const console_ = {json.dumps(console)};
   let token = null;
   try {{ token = localStorage.getItem('lux_token'); }} catch {{}}
+  // Odhlášení: zrušit token na serveru i v prohlížeči, pak obnovit stránku.
+  const logout = $('pm-logout');
+  if (logout) logout.addEventListener('click', async () => {{
+    try {{ await fetch(console_ + 'api/logout', {{ method: 'POST', headers: {{ Authorization: 'Bearer ' + token }} }}); }} catch (error) {{ /* odhlásíme i tak */ }}
+    try {{ localStorage.removeItem('lux_token'); }} catch (error) {{}}
+    location.reload();
+  }});
   if (!token) return;
+  let budgetLine = '';
   const get = (path) => fetch(console_ + path, {{ headers: {{ Authorization: 'Bearer ' + token }} }})
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
   get('api/me').then((data) => {{
@@ -612,11 +625,15 @@ def shell(base, active, crumbs, content, search_hint="Search payments, sellers�
     $('profile-name').textContent = user.username;
     $('profile-avatar').textContent = user.username.slice(0, 1).toUpperCase();
     $('pm-username').textContent = user.username;
-    $('pm-budget').textContent = 'budget $' + Number(user.budget).toFixed(2);
+    budgetLine = 'budget $' + Number(user.budget).toFixed(2);
+    $('pm-budget').textContent = budgetLine;
     $('pm-console').textContent = 'Open the agent console';
+    if (logout) logout.hidden = false;
     return get('api/state?t=' + Date.now());
   }}).then((state) => {{
     const available = state.wallet ? state.wallet.available : null;
+    $('pm-budget').textContent = available === null ? budgetLine + ' · no wallet yet'
+      : 'balance $' + Number(available).toFixed(2) + (budgetLine ? ' · ' + budgetLine : '');
     $('side-balance').innerHTML = available === null ? '—' : '<small>$</small>' + Number(available).toFixed(2);
     const items = (state.notifications || []).slice().reverse();
     if (!items.length) {{ $('bell-list').innerHTML = '<div class="bell-empty">No notifications yet.</div>'; return; }}

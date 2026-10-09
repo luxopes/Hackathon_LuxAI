@@ -132,8 +132,17 @@ async function autoSpeakIfEnabled() {
 }
 
 /* ---------- conversation ---------- */
+// Lehký markdown pro výstupy agenta: **tucne**, *kurziva*, `kod`, # nadpis a odkazy.
+// Vstup se nejdřív escapuje, takže do stránky nepronikne cizí HTML.
 function linkify(text) {
-  return esc(text).replace(/(https?:\/\/[^\s<>")]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+  const escaped = esc(text);
+  return escaped
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/^\s*#{1,6}\s*(.+)$/gm, "<b>$1</b>")
+    .replace(/^\s*[-*+]\s+(.+)$/gm, "• $1")
+    .replace(/(https?:\/\/[^\s<>")]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 function renderBody(text) {
@@ -608,14 +617,10 @@ async function toggleRecording() {
     status.textContent = "Transcribing with ElevenLabs Scribe…";
     try {
       const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
-      const encoded = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-        reader.onerror = () => reject(new Error("audio could not be read"));
-        reader.readAsDataURL(blob);
-      });
-      const resp = await apiFetch("api/transcribe", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio_base64: encoded }) });
+      const form = new FormData();
+      form.append("file", blob, "task.webm");
+      form.append("model_id", "scribe_v2");
+      const resp = await apiFetch("api/transcribe", { method: "POST", body: form });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         status.textContent = (data.error || "Transcription failed") + " (HTTP " + resp.status + ")";

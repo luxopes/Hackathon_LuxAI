@@ -51,6 +51,13 @@ def spoken_text(message):
     """Strip code fences, links, file paths and squeeze whitespace for speech."""
     text = re.sub(r"```[\s\S]*?```", " ", message)
     text = re.sub(r"https?://\S+", " ", text)
+    # Markdown se nečte: **tucne** -> tucne, `kod` -> kod, # nadpis -> nadpis.
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"\1", text)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"^\s*#{1,6}\s*(.+)$", r"\1", text, flags=re.M)
+    text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.M)
     text = re.sub(r"^\s*Saved:.*$", " ", text, flags=re.M)
     text = re.sub(r"^\s*(Python code|Tests|Basic tests):\s*$", " ", text, flags=re.M)
     text = text.replace("•", ".")
@@ -60,8 +67,11 @@ def spoken_text(message):
     return text[:MAX_CHARS]
 
 
-def console_message(index):
-    request = Request(CONSOLE + "/api/state", headers={"Accept": "application/json"})
+def console_message(index, authorization=""):
+    headers = {"Accept": "application/json"}
+    if authorization:
+        headers["Authorization"] = authorization
+    request = Request(CONSOLE + "/api/state", headers=headers)
     with urlopen(request, timeout=10) as response:
         state = json.loads(response.read(2_000_001))
     messages = state.get("messages") or []
@@ -185,7 +195,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(400, {"error": "this delivery has no readable text"})
         else:
             try:
-                message = console_message(payload.get("index"))
+                message = console_message(payload.get("index"), self.headers.get("Authorization", ""))
             except (URLError, OSError, ValueError):
                 return self.send_json(502, {"error": "Agent state is unavailable."})
             if message is None:
@@ -202,6 +212,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(502, {"error": str(error)})
         audio = path.read_bytes()
         return self.send_audio(audio)
+
+        if not content_type.startswith("multipart/form-data"):
+            return self.send_json(400, {"error": "multipart/form-data with an audio file is required"})
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self.send_json(400, {"error": "invalid body length"})
+        if not 0 < length <= MAX_UPLOAD_BYTES:
+            return self.send_json(413, {"error": "audio must have 1 byte to 8 MB"})
+        body = self.rfile.read(length)
+        with guard:
+            try:
+                text = transcribe_raw(body, content_type)
+            except HTTPError as error:
+                detail = error.read(400).decode("utf-8", "replace")
+                return self.send_json(502, {"error": f"ElevenLabs HTTP {error.code}: {detail[:200]}"})
+            except (URLError, OSError, ValueError) as error:
+                return self.send_json(502, {"error": f"Transcription failed: {type(error).__name__}"})
+        return self.send_json(200, {"text": text})
+
 
     def transcribe(self):
         if not KEY:

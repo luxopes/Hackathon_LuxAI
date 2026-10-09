@@ -164,3 +164,15 @@ signed payload, while the verifier rebuilds it with the current constant
 marketplace as well; the fresh receipts (signed after the rename) verify. Decide:
 keep a historic currency constant, store the currency per receipt, or treat the
 payload currency as part of the signed data and never rename it again.
+
+## 5. Speech sidecar runs in Python again
+
+The LSL sidecar (`backend/lsl/speech.lsl`) works and stays in the repository, but
+production runs the Python one (`backend/python/tts.py`), which proved more
+reliable in practice. The unit keeps the cache directory
+`/srv/www/proofpay-tts` so the mp3 files Caddy serves stay where they are.
+`tts.py` now also strips markdown before speaking (so `**bold**` is not read as
+asterisks), forwards the caller's token when it reads a message from the console
+(messages are per account now, so this is required), and rejects nothing else.
+The console renders `**bold**`, `*italic*`, `code` and links in every agent
+message and delivery, so the model output stops showing raw asterisks.

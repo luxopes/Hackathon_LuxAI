@@ -134,7 +134,8 @@ purchase step; a funded job is always settled or refunded first. Returns
 
 ### `POST /api/speak`
 Read one stored agent message (or a purchased delivery) aloud. ElevenLabs runs
-behind the **LSL speech sidecar** (`backend/lsl/speech.lsl`); the request
+behind the **Python speech sidecar** (`backend/python/tts.py`), which is the
+deployed one; `backend/lsl/speech.lsl` is a working LSL alternative. The request
 carries only an index or a job id, never free text, so the endpoint cannot be
 abused as a TTS proxy. The API key stays on the server (curl receives it in a
 config file, never in arguments) and identical texts are served from the shared

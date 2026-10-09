@@ -57,6 +57,9 @@ class Market:
         # Podpisový klíč pro doklady (Ed25519); bez něj se doklady jen nepodepisují.
         stripe_file = config.get("stripe_key_file", "")
         self.stripe_key = Path(stripe_file).read_text().strip() if stripe_file and Path(stripe_file).is_file() else ""
+        # Connect: výplaty prodejcům přes Stripe (zapne se účtem v stripe_accounts).
+        self.connect_enabled = bool(config.get("stripe_connect_enabled", False))
+        self.connect_currency = config.get("stripe_connect_currency", "usd")
         self.stripe_success_url = config.get("stripe_success_url", "https://hackathon.lux-ai.cz/web/?stripe=ok")
         self.stripe_cancel_url = config.get("stripe_cancel_url", "https://hackathon.lux-ai.cz/web/?stripe=cancel")
         key_file = config.get("receipt_signing_key_file", "")
@@ -93,6 +96,11 @@ class Market:
                 CREATE TABLE IF NOT EXISTS stripe_payments(id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
                     lux_coins INTEGER NOT NULL, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL,
                     kind TEXT NOT NULL, status TEXT NOT NULL, created REAL NOT NULL, credited REAL);
+                CREATE TABLE IF NOT EXISTS stripe_accounts(seller_id TEXT PRIMARY KEY, account_id TEXT NOT NULL,
+                    created REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS stripe_transfers(job_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL,
+                    transfer_id TEXT, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL,
+                    status TEXT NOT NULL, detail TEXT, created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS signatures(job_id TEXT PRIMARY KEY, alg TEXT NOT NULL,
                     public_key_id TEXT NOT NULL, signature TEXT NOT NULL, payload TEXT NOT NULL,
                     payload_sha256 TEXT NOT NULL, created REAL NOT NULL);
@@ -665,6 +673,86 @@ class Market:
                 "amount_cents": fresh["amount_cents"], "amount_usd": fresh["amount_cents"] // 100, "currency": "usd",
                 "ratio": "1:1", "mode": "stripe-test", "payment": "card payment in Stripe test mode"}
 
+    def connected_account(self, seller_id):
+        with self.db() as db:
+            row = db.execute("SELECT account_id FROM stripe_accounts WHERE seller_id = ?", (seller_id,)).fetchone()
+        return row["account_id"] if row else ""
+
+    def connect_balance(self, currency):
+        # Převod lze vytvořit jen z disponibilního zůstatku platformy.
+        try:
+            balance = self.stripe_request("GET", "balance", None)
+        except Problem:
+            return 0
+        for bucket in balance.get("available", []):
+            if bucket.get("currency") == currency:
+                return int(bucket.get("amount", 0))
+        return 0
+
+    def connect_status(self):
+        with self.db() as db:
+            accounts = [dict(row) for row in db.execute("SELECT seller_id, account_id FROM stripe_accounts ORDER BY seller_id")]
+            transfers = [dict(row) for row in db.execute(
+                "SELECT job_id, seller_id, transfer_id, amount_cents, status, detail FROM stripe_transfers ORDER BY created DESC LIMIT 10")]
+        return {"enabled": self.connect_enabled, "currency": self.connect_currency, "accounts": accounts,
+                "transfers": transfers, "available": self.connect_balance(self.connect_currency) if self.connect_enabled else None,
+                "hint": "" if self.connect_enabled else "Enable Connect in the Stripe dashboard, then set stripe_connect_enabled in market.json"}
+
+    def setup_connect(self):
+        if not self.connect_enabled:
+            raise Problem(409, "Connect is not enabled in this marketplace configuration")
+        created = []
+        for seller_id in sorted(self.sellers):
+            if self.connected_account(seller_id):
+                continue
+            account = self.stripe_request("POST", "accounts", {
+                "type": "express", "country": "CZ",
+                "capabilities[transfers][requested]": "true",
+                "business_profile[name]": "ProofPay seller " + seller_id,
+                "metadata[seller_id]": seller_id,
+                "settings[payouts][schedule][interval]": "manual",
+            })
+            with self.transaction() as db:
+                db.execute("INSERT OR REPLACE INTO stripe_accounts VALUES(?,?,?)", (seller_id, account["id"], time.time()))
+            created.append({"seller_id": seller_id, "account_id": account["id"]})
+        return {"created": created, **self.connect_status()}
+
+    def payoff_seller(self, job_id, seller_id, amount_usd):
+        """Skutečná výplata prodejci přes Stripe Connect. Nikdy neblokuje vypořádání.
+
+        Když Connect není zapnutý, neudělá nic (žádný záznam, žádná chyba);
+        interní ledger platí dál. Selhání převodu se zapíše do stripe_transfers
+        a vypořádání to nijak neovlivní.
+        """
+        if not self.connect_enabled:
+            return None
+        account = self.connected_account(seller_id)
+        detail, status, transfer_id = "", "skipped", None
+        if not account:
+            detail = "seller has no connected account yet"
+        elif not self.stripe_key:
+            detail = "stripe key is not configured"
+        else:
+            cents = int(amount_usd) * 100
+            available = self.connect_balance(self.connect_currency)
+            if available < cents:
+                status = "pending_balance"
+                detail = f"platform holds {available} {self.connect_currency}, needs {cents}"
+            else:
+                try:
+                    created = self.stripe_request("POST", "transfers", {
+                        "amount": str(cents), "currency": self.connect_currency, "destination": account,
+                        "transfer_group": job_id, "metadata[job_id]": job_id, "metadata[seller_id]": seller_id,
+                    })
+                    transfer_id, status, detail = created.get("id", ""), "created", ""
+                except Problem as error:
+                    status, detail = "failed", error.message[:200]
+        with self.transaction() as db:
+            db.execute("INSERT OR REPLACE INTO stripe_transfers VALUES(?,?,?,?,?,?,?,?)",
+                       (job_id, seller_id, transfer_id, int(amount_usd) * 100, self.connect_currency,
+                        status, detail, time.time()))
+        return {"transfer_id": transfer_id, "status": status, "detail": detail}
+
     def top_up(self, session_id, amount):
         # Simulované dobití peněženky: nový řádek v ledgeru, žádná změna historie.
         if type(amount) is not int or not 1 <= amount <= 1000:
@@ -704,6 +792,12 @@ class Market:
                 db.execute("UPDATE wallets SET available = available + ? WHERE id = ?", (price, row["seller_id"]))
             db.execute("UPDATE jobs SET state = ? WHERE id = ?", (final, job_id))
             self.record(db, session_id, job_id, "REFUND_AUTHORIZED_BY_CONTRACT" if refund else "PAYMENT_RELEASED", price)
+        # Skutečná výplata prodejci (jen při zaplacení, ne u refundace).
+        if not refund:
+            try:
+                self.payoff_seller(job_id, row["seller_id"], price)
+            except Exception:
+                pass
         self.sign_settlement(job_id)
         return self.job(job_id)
 
@@ -837,6 +931,7 @@ class Market:
             seller_wallet = dict(db.execute("SELECT * FROM wallets WHERE id = ?", (job["seller_id"],)).fetchone())
             ledger_rows = [dict(row) for row in db.execute("SELECT * FROM ledger WHERE session_id = ? ORDER BY id", (job["session_id"],))]
             signature = db.execute("SELECT * FROM signatures WHERE job_id = ?", (job_id,)).fetchone()
+            transfer_row = db.execute("SELECT * FROM stripe_transfers WHERE job_id = ?", (job_id,)).fetchone()
             minted = db.execute("SELECT COALESCE(SUM(budget),0) FROM sessions").fetchone()[0]
             held = db.execute("SELECT COALESCE(SUM(available + locked),0) FROM wallets").fetchone()[0]
         # Rekonstrukce zůstatků z ledgeru: každý pohyb i se stavem po něm.
@@ -878,6 +973,7 @@ class Market:
                 "reconciliation": {"escrow_locked": escrow_locked, "settled": settled, "price": job["price"],
                                    "balanced": escrow_locked == settled == job["price"] and credits >= 0,
                                    "movements": len(job_moves)},
+                "stripe_transfer": (dict(transfer_row) if transfer_row else None),
                 "signature": ({"alg": signature["alg"], "key_id": signature["public_key_id"],
                                "value_base64": signature["signature"], "payload": signature["payload"],
                                "payload_sha256": signature["payload_sha256"],
@@ -1021,6 +1117,8 @@ class Handler(BaseHTTPRequestHandler):
                     if candidate.is_file():
                         return self.send(200, candidate.read_bytes(), "image/jpeg")
                 raise Problem(404, "route not found")
+            if path == "/api/connect/status":
+                return self.send(200, market.connect_status() if token == market.client_token else {"enabled": market.connect_enabled})
             if path == "/api/dashboard":
                 return self.send(200, market.dashboard())
             if path == "/api/offers":
@@ -1082,6 +1180,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, market.progress(payload, token))
             if path == "/providers/research":
                 return self.send(200, market.research(payload, token))
+            if path == "/api/connect/setup":
+                return self.send(200, market.setup_connect())
             if path == "/api/sessions":
                 return self.send(201, market.create_session(payload))
             if path == "/api/jobs":

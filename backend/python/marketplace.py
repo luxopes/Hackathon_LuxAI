@@ -607,7 +607,7 @@ class Market:
             "line_items[0][quantity]": "1",
             "line_items[0][price_data][currency]": "usd",
             "line_items[0][price_data][unit_amount]": str(cents),
-            "line_items[0][price_data][product_data][name]": f"Wallet top-up (Stripe test): {coins} USD",
+            "line_items[0][price_data][product_data][name]": f"Wallet top-up 1:1 (Stripe test): ${coins:,}.00",
         })
         with self.transaction() as db:
             db.execute("INSERT OR REPLACE INTO stripe_payments VALUES(?,?,?,?,?,?,?,?,NULL)",
@@ -625,7 +625,7 @@ class Market:
         intent = self.stripe_request("POST", "payment_intents", {
             "amount": str(cents), "currency": "usd", "payment_method": "pm_card_visa", "confirm": "true",
             "automatic_payment_methods[enabled]": "true", "automatic_payment_methods[allow_redirects]": "never",
-            "description": f"Wallet top-up (Stripe test): {coins} USD",
+            "description": f"Wallet top-up 1:1 (Stripe test): ${coins:,}.00",
             "metadata[session_id]": session_id, "metadata[lux_coins]": str(coins),
         })
         with self.transaction() as db:
@@ -662,7 +662,8 @@ class Market:
             self.record(db, session_id, None, "STRIPE_TOPUP", coins)
             db.execute("UPDATE stripe_payments SET status = 'paid', credited = ? WHERE id = ?", (time.time(), stripe_id))
         return {"credited": True, "lux_coins": coins, "session_id": session_id, "stripe_reference": reference,
-                "mode": "stripe-test", "payment": "card payment in Stripe test mode"}
+                "amount_cents": fresh["amount_cents"], "amount_usd": fresh["amount_cents"] // 100, "currency": "usd",
+                "ratio": "1:1", "mode": "stripe-test", "payment": "card payment in Stripe test mode"}
 
     def top_up(self, session_id, amount):
         # Simulované dobití peněženky: nový řádek v ledgeru, žádná změna historie.

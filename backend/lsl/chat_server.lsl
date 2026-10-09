@@ -339,7 +339,8 @@ function credit_card_topup(who, session_id, outcome):
     call users_save()
     call lock()
     try:
-        call add_notification("info", "Card payment confirmed (Stripe test): +" + usd(outcome["lux_coins"]), "", who)
+        charged = Int(outcome.get("amount_usd", outcome["lux_coins"]))
+        call add_notification("info", "Stripe charged " + usd(charged) + " by card → wallet credited " + usd(outcome["lux_coins"]) + " (1:1)", "", who)
     else:
         call time.time()
     end

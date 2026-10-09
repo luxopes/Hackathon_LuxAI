@@ -1114,9 +1114,9 @@ async function confirmStripeReturn(stripeId) {
     const stripe = data.stripe || {};
     if (resp.ok && data.user) applyAccount(data.user);
     if (resp.ok && stripe.credited) {
-      showNotice("Card payment confirmed (Stripe test): +" + usd(stripe.lux_coins) + ".");
+      showNotice("Stripe charged " + usd(stripe.amount_usd != null ? stripe.amount_usd : stripe.lux_coins) + " by card → wallet credited " + usd(stripe.lux_coins) + " (1:1).");
     } else if (resp.ok) {
-      showNotice("Stripe payment already credited (+" + usd(stripe.lux_coins) + ").");
+      showNotice("Stripe payment already credited (" + usd(stripe.lux_coins) + ", 1:1).");
     } else {
       showNotice((data.error || "Stripe confirmation failed") + " (HTTP " + resp.status + ")");
     }

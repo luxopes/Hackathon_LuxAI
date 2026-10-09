@@ -319,14 +319,14 @@
   <div class="stripe-actions">
     <button class="primary" type="button" id="stripe-pay">Pay by card (Stripe)</button>
   </div>
-  <p class="text-muted stripe-note" id="stripe-status">Card payments run in <b>Stripe test mode</b> (sandbox): use <b>4242 4242 4242 4242</b>, any future date and any CVC on the Stripe page. The wallet is credited with <b>simulated dollars</b>, one for one with what you pay — a realistic flow, no real money.</p>
+  <p class="text-muted stripe-note" id="stripe-status">Card payments run in <b>Stripe test mode</b> (sandbox): use <b>4242 4242 4242 4242</b>, any future date and any CVC on the Stripe page. The wallet is credited <b>1:1</b>: pay <b>$1.00</b> and the wallet gains exactly <b>$1.00</b> — the same amount Stripe shows on its page. Simulated dollars, no real money.</p>
   <div class="dialog-footer">
     <button type="button" id="topup-cancel">Cancel</button>
     <button class="primary" type="button" id="topup-submit">Top up</button>
   </div>
 </dialog>
 
-<script src="app.js?v=37"></script>
+<script src="app.js?v=38"></script>
 <script>
 (function(){
   var root=document.documentElement;

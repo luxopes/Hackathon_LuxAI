@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the LSL ledger check every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

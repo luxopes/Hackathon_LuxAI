@@ -1,0 +1,7 @@
+[Unit]
+Description=Check the market invariant with the LSL sqlite library
+
+[Service]
+Type=oneshot
+ExecStart=/opt/proofpay-mvp/ledger-check
+Environment=PROOFPAY_DB=/var/lib/proofpay-mvp/market.db

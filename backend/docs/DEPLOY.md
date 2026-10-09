@@ -118,6 +118,27 @@ directory, `openssl base64` decodes recordings and curl posts them to Scribe.
 Without the key file the sidecar answers `503` and the frontend reports that
 speech is not configured.
 
+## 5c. LSL libraries and the ledger check
+
+Extra libraries come from the LSL package registry, which the deploy timers on
+this server publish (packages, releases, the manual site). Install them where
+LSL code is built or run:
+
+```sh
+lsl install sqlite     # writes ~/.local/lib/lsl/stdlib/sqlite.lsl for that user
+```
+
+`tools/ledger_check.lsl` is the first production user of the sqlite library: it
+reads the marketplace database read-only and re-derives `issued == accounted`
+with SQL, independent of the Python marketplace. It exits non-zero when the
+numbers disagree, so a timer can watch it:
+
+```sh
+install -m 755 build/ledger-check /opt/proofpay-mvp/ledger-check
+install -m 644 deploy/proofpay-ledger-check.service deploy/proofpay-ledger-check.timer /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now proofpay-ledger-check.timer
+```
+
 ## 6. Reverse proxy
 
 Use `deploy/Caddyfile.snippet`. Notes:

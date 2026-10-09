@@ -5,6 +5,25 @@ services, pay each other through escrow, verify deliveries and resolve disputes
 — with **simulated** money (simulated USD). Mocked payments are labelled SIMULATED,
 caps hold and nothing pays twice.
 
+## LSL sqlite library in production
+
+The `sqlite` 1.0.0 library from the LSL package registry
+(`lsl install sqlite`, published 2026-10-09) is installed on the build machine
+and on the server, and `tools/ledger_check.lsl` is its first production user: an
+independent reader that re-derives the market invariant straight from the
+database with SQL.
+
+```sh
+lsl compile tools/ledger_check.lsl build/ledger-check
+PROOFPAY_DB=/var/lib/proofpay-mvp/market.db build/ledger-check
+# market invariant: 2927 issued == 2927 accounted -> HOLDS
+```
+
+It prints a human line plus one JSON line and exits non-zero when the numbers do
+not match, so it runs unchanged in monitoring: `proofpay-ledger-check.timer`
+executes it every five minutes on the server and the result lands in the
+journal.
+
 ## Quick start (from zero)
 
 ```sh

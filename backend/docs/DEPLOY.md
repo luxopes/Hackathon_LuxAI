@@ -139,6 +139,41 @@ install -m 644 deploy/proofpay-ledger-check.service deploy/proofpay-ledger-check
 systemctl daemon-reload && systemctl enable --now proofpay-ledger-check.timer
 ```
 
+## 5d. Stripe Connect payouts to sellers (optional)
+
+Card top-ups need nothing but the key; paying the *sellers* for real needs
+Connect. Once it is enabled on the platform account (Stripe dashboard, Connect),
+the flow is:
+
+```sh
+# 1. switch it on in the marketplace config
+#    "stripe_connect_enabled": true, "stripe_connect_currency": "usd"
+# 2. create the connected accounts for every seller (Accounts v2)
+curl -X POST http://127.0.0.1:3070/api/connect/setup -H "Authorization: Bearer <client token>" -H "Content-Type: application/json" -d '{}'
+# 3. hand each seller its Stripe-hosted onboarding link (regenerate as needed)
+curl -X POST http://127.0.0.1:3070/api/connect/link -H "Authorization: Bearer <client token>" -H "Content-Type: application/json" -d '{"seller_id": "complete"}'
+# 4. watch the state and the recent transfers
+curl http://127.0.0.1:3070/api/connect/status -H "Authorization: Bearer <client token>"
+```
+
+Notes that cost time to learn:
+
+* Account creation must use **Accounts v2** (`POST /v2/core/accounts` with JSON
+  and `Stripe-Version: 2025-12-15.clover`); the v1 `type=express` route is
+  refused for new platforms.
+* Identity is collected **by Stripe, not by the platform** — attempting to accept
+  the terms through the API answers "You cannot accept the Terms of Service on
+  behalf of accounts where requirement collection is owned by Stripe". That is
+  why the onboarding link exists.
+* Every **paid** settlement creates a Transfer to the seller's account, tagged
+  with the job id and recorded in `stripe_transfers`; refunds never transfer.
+  A failure (missing account, missing balance, restricted capability) is
+  recorded with its reason and never blocks the settlement.
+* When the platform's balance is held in another currency, the transfer is
+  converted with the rate of the funding charge, and the receipt says so.
+* In test mode the platform balance must be *available*: charge with the
+  bypass-pending card 4000 0000 0000 0077, otherwise the funds stay pending.
+
 ## 6. Reverse proxy
 
 Use `deploy/Caddyfile.snippet`. Notes:

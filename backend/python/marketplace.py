@@ -595,6 +595,33 @@ class Market:
         except (URLError, OSError, ValueError):
             raise Problem(502, "Stripe is unavailable")
 
+    CONNECT_VERSION = "2025-12-15.clover"
+
+    def stripe_request_v2(self, method, path, payload):
+        """Stripe API v2: JSON tělo a explicitní verze (Accounts v2)."""
+        if not self.stripe_key:
+            raise Problem(503, "Stripe is not configured on this marketplace")
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            json.dump(payload, handle)
+            body_file = handle.name
+        try:
+            completed = subprocess.run([
+                "curl", "-sS", "-m", "40", "-X", method,
+                "-H", "Authorization: Bearer " + self.stripe_key,
+                "-H", "Content-Type: application/json",
+                "-H", "Stripe-Version: " + self.CONNECT_VERSION,
+                "--data-binary", "@" + body_file, "https://api.stripe.com/v2/" + path,
+            ], capture_output=True, text=True, timeout=60)
+        finally:
+            Path(body_file).unlink(missing_ok=True)
+        try:
+            answer = json.loads(completed.stdout or "{}")
+        except ValueError:
+            raise Problem(502, "Stripe v2 returned an unreadable answer")
+        if answer.get("error"):
+            raise Problem(502, "Stripe: " + str(answer["error"].get("message", ""))[:200])
+        return answer
+
     def stripe_amount(self, amount_usd):
         if type(amount_usd) is not int or not self.STRIPE_MIN_USD <= amount_usd <= self.STRIPE_MAX_USD:
             raise Problem(400, f"card amount must be a whole number of US dollars from {self.STRIPE_MIN_USD} to {self.STRIPE_MAX_USD}")
@@ -678,6 +705,24 @@ class Market:
             row = db.execute("SELECT account_id FROM stripe_accounts WHERE seller_id = ?", (seller_id,)).fetchone()
         return row["account_id"] if row else ""
 
+    def last_exchange_rate(self, currency):
+        """Kurz z poslední skutečné karty: kolik měny platformy dal jeden dolar."""
+        try:
+            charges = self.stripe_request("GET", "charges?limit=5", None)
+        except Problem:
+            return None, ""
+        for charge in charges.get("data", []):
+            if charge.get("currency") != currency or not charge.get("paid") or not charge.get("balance_transaction"):
+                continue
+            try:
+                balance = self.stripe_request("GET", "balance_transactions/" + charge["balance_transaction"], None)
+            except Problem:
+                continue
+            net, amount = balance.get("amount"), charge.get("amount")
+            if net and amount:
+                return float(net) / float(amount), balance.get("currency", "")
+        return None, ""
+
     def connect_balance(self, currency):
         # Převod lze vytvořit jen z disponibilního zůstatku platformy.
         try:
@@ -699,23 +744,41 @@ class Market:
                 "hint": "" if self.connect_enabled else "Enable Connect in the Stripe dashboard, then set stripe_connect_enabled in market.json"}
 
     def setup_connect(self):
+        """Založí connected účty prodejců přes Accounts v2 (v1 Stripe odmítá)."""
         if not self.connect_enabled:
             raise Problem(409, "Connect is not enabled in this marketplace configuration")
         created = []
         for seller_id in sorted(self.sellers):
             if self.connected_account(seller_id):
                 continue
-            account = self.stripe_request("POST", "accounts", {
-                "type": "express", "country": "CZ",
-                "capabilities[transfers][requested]": "true",
-                "business_profile[name]": "ProofPay seller " + seller_id,
-                "metadata[seller_id]": seller_id,
-                "settings[payouts][schedule][interval]": "manual",
+            account = self.stripe_request_v2("POST", "core/accounts", {
+                "contact_email": "seller-" + seller_id + "@proofpay.local",
+                "display_name": "ProofPay seller " + seller_id,
+                "dashboard": "express",
+                "identity": {"country": "CZ"},
+                "configuration": {"recipient": {"capabilities": {"stripe_balance": {"stripe_transfers": {"requested": True}}}}},
+                "defaults": {"responsibilities": {"fees_collector": "application", "losses_collector": "application"}},
+                "metadata": {"seller_id": seller_id},
             })
             with self.transaction() as db:
                 db.execute("INSERT OR REPLACE INTO stripe_accounts VALUES(?,?,?)", (seller_id, account["id"], time.time()))
             created.append({"seller_id": seller_id, "account_id": account["id"]})
         return {"created": created, **self.connect_status()}
+
+    def connect_onboarding_link(self, seller_id):
+        """Odkaz na Stripe-hostovaný onboarding; identitu vyplňuje prodejce, ne platforma."""
+        if not self.connect_enabled:
+            raise Problem(409, "Connect is not enabled in this marketplace configuration")
+        account = self.connected_account(seller_id)
+        if not account:
+            raise Problem(404, "seller has no connected account yet; run /api/connect/setup first")
+        link = self.stripe_request("POST", "account_links", {
+            "account": account, "type": "account_onboarding",
+            "return_url": self.stripe_success_url.split("?")[0],
+            "refresh_url": self.stripe_cancel_url.split("?")[0],
+        })
+        return {"seller_id": seller_id, "account_id": account, "url": link.get("url", ""),
+                "expires_at": link.get("expires_at"), "status": self.connect_status()}
 
     def payoff_seller(self, job_id, seller_id, amount_usd):
         """Skutečná výplata prodejci přes Stripe Connect. Nikdy neblokuje vypořádání.
@@ -735,22 +798,31 @@ class Market:
         else:
             cents = int(amount_usd) * 100
             available = self.connect_balance(self.connect_currency)
+            currency = self.connect_currency
+            note = ""
             if available < cents:
+                # Platforma drží jen svou měnu (CZK): převedeme kurzem z reálné karty.
+                rate, held = self.last_exchange_rate(self.connect_currency)
+                if rate and held:
+                    converted = int(round(int(amount_usd) * rate))
+                    if self.connect_balance(held) >= converted:
+                        cents, currency = converted, held
+                        note = f"{amount_usd} USD converted at the rate of the funding charge"
+            if self.connect_balance(currency) < cents:
                 status = "pending_balance"
-                detail = f"platform holds {available} {self.connect_currency}, needs {cents}"
+                detail = f"platform holds {self.connect_balance(currency)} {currency}, needs {cents}"
             else:
                 try:
                     created = self.stripe_request("POST", "transfers", {
-                        "amount": str(cents), "currency": self.connect_currency, "destination": account,
+                        "amount": str(cents), "currency": currency, "destination": account,
                         "transfer_group": job_id, "metadata[job_id]": job_id, "metadata[seller_id]": seller_id,
                     })
-                    transfer_id, status, detail = created.get("id", ""), "created", ""
+                    transfer_id, status, detail = created.get("id", ""), "created", note
                 except Problem as error:
                     status, detail = "failed", error.message[:200]
         with self.transaction() as db:
             db.execute("INSERT OR REPLACE INTO stripe_transfers VALUES(?,?,?,?,?,?,?,?)",
-                       (job_id, seller_id, transfer_id, int(amount_usd) * 100, self.connect_currency,
-                        status, detail, time.time()))
+                       (job_id, seller_id, transfer_id, cents, currency, status, detail, time.time()))
         return {"transfer_id": transfer_id, "status": status, "detail": detail}
 
     def top_up(self, session_id, amount):
@@ -1182,6 +1254,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, market.research(payload, token))
             if path == "/api/connect/setup":
                 return self.send(200, market.setup_connect())
+            if path == "/api/connect/link":
+                seller_id = payload.get("seller_id")
+                if type(seller_id) is not str or seller_id not in market.sellers:
+                    raise Problem(400, "unknown seller_id")
+                return self.send(200, market.connect_onboarding_link(seller_id))
             if path == "/api/sessions":
                 return self.send(201, market.create_session(payload))
             if path == "/api/jobs":

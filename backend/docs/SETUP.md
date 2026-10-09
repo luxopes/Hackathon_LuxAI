@@ -134,8 +134,9 @@ printf '%s' 'sk_…' > ~/.config/elevenlabs/key
 chmod 600 ~/.config/elevenlabs/key
 ```
 
-`scripts/run-local.sh` then starts the speech sidecar (`backend/python/tts.py`,
-port 3071) and the 🔊 buttons on agent messages work. Without the key the
+`scripts/run-local.sh` then starts the speech sidecar (`backend/lsl/speech.lsl`
+compiled like the other services, port 3071) and the 🔊 buttons on agent messages
+work. The Python `backend/python/tts.py` remains only as a fallback. Without the key the
 sidecar is skipped and the button reports `503 Text-to-speech is not
 configured`. The key is never exposed to the browser; only message indexes are
 accepted by the service and rendered audio is cached on disk.

@@ -20,9 +20,10 @@ For a local development run from zero (including the LSL installation) see
 ```sh
 lsl compile lsl/seller.lsl      build/seller
 lsl compile lsl/chat_server.lsl build/web-server
+lsl compile lsl/speech.lsl      build/speech     # optional ElevenLabs sidecar
 ```
 
-Both binaries are static native executables; one `seller` binary serves all
+The binaries are static native executables; one `seller` binary serves all
 seller instances (behaviour comes from the environment file).
 
 ## 3. Install files
@@ -30,7 +31,7 @@ seller instances (behaviour comes from the environment file).
 ```sh
 install -d -m 750 -o root -g proofpay /opt/proofpay-mvp
 install -m 644 python/marketplace.py python/services.py python/ui.py /opt/proofpay-mvp/
-install -m 755 build/seller build/web-server /opt/proofpay-mvp/
+install -m 755 build/seller build/web-server build/speech /opt/proofpay-mvp/
 
 # frontend statics served by the console service
 install -d -m 750 -o root -g proofpay /opt/proofpay-mvp/web
@@ -92,27 +93,44 @@ done
 Units run as `proofpay` with `ProtectSystem=strict`, `NoNewPrivileges`,
 `MemoryMax` 128–256 MB and a `ReadWritePaths=/var/lib/proofpay-mvp` exception.
 
-## 5b. Speech sidecar (optional, ElevenLabs)
+## 5b. Speech sidecar (optional, ElevenLabs) — LSL
+
+`backend/lsl/speech.lsl` is the running sidecar (the older
+`backend/python/tts.py` is kept only as a fallback). It builds like the other
+LSL services and needs no Python.
 
 ```sh
-install -m 644 backend/python/tts.py /opt/proofpay-mvp/tts.py
+install -d -m 750 -o proofpay -g caddy /srv/www/proofpay-tts
+install -d -m 700 -o proofpay -g proofpay /var/lib/proofpay-mvp/tts-work
 printf '%s' 'sk_…' > /etc/proofpay-mvp/elevenlabs.key
 chmod 640 /etc/proofpay-mvp/elevenlabs.key && chown root:proofpay /etc/proofpay-mvp/elevenlabs.key
 install -m 644 deploy/proofpay-tts.service /etc/systemd/system/
 systemctl daemon-reload && systemctl enable --now proofpay-tts.service
 ```
 
-The sidecar listens on `127.0.0.1:3071`, reads the message text from the console
-state (`TTS_CONSOLE_URL`) and caches rendered mp3 files in
-`/var/lib/proofpay-mvp/tts`. Without the key file it answers `503` and the
-frontend button reports that speech is not configured.
+The unit runs `/opt/proofpay-mvp/speech` on `127.0.0.1:3071` with
+`TTS_CACHE_DIR=/srv/www/proofpay-tts`, `TTS_WORK_DIR=/var/lib/proofpay-mvp/tts-work`,
+`UMask=0027` and `ReadWritePaths=/var/lib/proofpay-mvp /srv/www/proofpay-tts`, so
+the mp3 files are group-readable by Caddy while the work directory (curl config
+with the API key, uploaded recordings) stays private to the service. Binary data
+never passes through LSL strings: curl writes the mp3 straight to the cache
+directory, `openssl base64` decodes recordings and curl posts them to Scribe.
+Without the key file the sidecar answers `503` and the frontend reports that
+speech is not configured.
 
 ## 6. Reverse proxy
 
 Use `deploy/Caddyfile.snippet`. Notes:
 
-* Route `/hackathon01/web/api/speak` to the speech sidecar **before** the
-  console route (the console serves everything else under `/hackathon01/web/`).
+* Serve the generated audio straight from disk:
+  `handle_path /web/tts/* { root * /srv/www/proofpay-tts; file_server }`.
+* Route `/web/api/speak*` and `/web/api/transcribe*` to the speech sidecar
+  **before** the console route (the console serves everything else under
+  `/web/`). The older `/hackathon01/...` paths keep the same shape for the
+  legacy host.
+* The marketplace answers both at `/` and at `/overview`; `/` may redirect to
+  `/web/`, which is why in-page links use `/overview` (permanent redirects are
+  cached by CDNs and browsers).
 * The console route needs `header_up -Via` — the LSL HTTP parser rejects
   duplicated hop-by-hop headers that a proxy chain may add.
 * Keep the console and its API under one origin so the browser needs no CORS.

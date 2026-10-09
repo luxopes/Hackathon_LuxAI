@@ -1456,8 +1456,44 @@ document.querySelectorAll(".filter").forEach((chip) => {
   });
 });
 $("side-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
-$("top-tasks").addEventListener("click", (event) => { event.preventDefault(); $("tasks").scrollIntoView({ behavior: "smooth" }); });
-$("top-agents").addEventListener("click", (event) => { event.preventDefault(); $("agents").scrollIntoView({ behavior: "smooth" }); });
+// Kotvy v horní liště i v sidebaru: plynulý posun a krátké zvýraznění cíle.
+// Na široké obrazovce je totiž všechno vidět, takže samotný posun není poznat.
+function jumpToSection(id) {
+  const target = document.getElementById(id);
+  if (!target) return false;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.remove("flash");
+  void target.offsetWidth;
+  target.classList.add("flash");
+  setTimeout(() => target.classList.remove("flash"), 1200);
+  return true;
+}
+
+document.querySelectorAll('a[href^="#"]').forEach((link) => {
+  const id = (link.getAttribute("href") || "").slice(1);
+  if (!id || !document.getElementById(id)) return;
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    jumpToSection(id);
+    history.replaceState({}, "", "#" + id);
+  });
+});
+
+// Příchod z jiné stránky s kotvou (marketplace tabs míří na /web/#tasks).
+function handleIncomingHash() {
+  if (location.hash.length < 2) return;
+  const id = location.hash.slice(1);
+  if (id === "create") {
+    // "Create Task" z marketplace: otevřít dialog místo skoku na neexistující kotvu.
+    const button = $("side-create");
+    if (button) button.click();
+    return;
+  }
+  jumpToSection(id);
+}
+
+handleIncomingHash();
+window.addEventListener("hashchange", handleIncomingHash);
 $("bell").addEventListener("click", async (event) => {
   event.stopPropagation();
   const menu = $("bell-menu");

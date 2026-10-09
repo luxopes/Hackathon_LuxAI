@@ -487,7 +487,7 @@ def shell(base, active, crumbs, content, search_hint="Search payments, sellersâ€
     `base` is "" for pages at the marketplace root and "../" one level down;
     the agent console lives at `{base}web/` (same origin in production).
     """
-    home = base or "."
+    home = base + "overview"
     console = base + "web/"
     side = "".join([
         _nav_item(console, "home", "Overview", False),

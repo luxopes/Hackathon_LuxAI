@@ -994,7 +994,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.command == "GET":
             if path == "/health":
                 return self.send(200, {"ok": True, "payments": "simulated USD"})
-            if path == "/":
+            if path == "/" or path == "/overview":
+                # / vede na konzoli (Caddy), /overview je přímý odkaz na přehled.
                 return self.send(200, ui.dashboard_page(market.dashboard()), "text/html; charset=utf-8")
             if path == "/.well-known/proofpay-keys.json":
                 keys = [{"id": market.signing_key_id, "alg": "Ed25519", "public_key_pem": market.signing_public_pem}] if market.signing_public_pem else []

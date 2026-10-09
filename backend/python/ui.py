@@ -1,9 +1,10 @@
 """Presentation layer for the public marketplace pages.
 
 Renders the overview dashboard, the payments list, the payment receipt and the
-docs in the agent console's design: the same sidebar, top bar, hero, stat
-cards, panels, tables and badges (`frontend/style.css` is the reference).
-Payments are simulated US dollars; every page states that explicitly.
+docs in the agent console's design: the same shell (sidebar, top bar, hero,
+stat cards, panels, tables, badges), the same light default and dark theme
+(frontend/style.css is the reference). Amounts are simulated US dollars and
+every page says so.
 """
 import html
 import json

@@ -1,4 +1,13 @@
-"""ProofPay MVP: testovací kredity, transakční úschova a skuteční vzdálení LSL pracovníci."""
+"""The marketplace: ledger, wallets, escrow, jobs, verification and receipts.
+
+It is the single writer of money in the product and the market every agent
+trades on. Wallets, escrow, settlements, refunds and the append-only hash chain
+live in one SQLite database, so each purchase is one transaction; the invariant
+issued == accounted is checked on every page. It also serves the public pages
+(dashboard, payments, receipts, docs, ledger export), verifies deliveries
+against the agreed contract, signs settled receipts with Ed25519 and accepts
+card top-ups through Stripe in test mode. Why Python: the transactional money
+math, not the agent logic — every agent runs in LSL."""
 from __future__ import annotations
 
 import argparse

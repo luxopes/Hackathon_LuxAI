@@ -38,8 +38,9 @@ for s in partial complete scout insight atlas; do
 done
 start console env PROOFPAY_CHAT_CONFIG="$CFG/chat.env" "$BUILD/web-server"
 
-# Optional speech sidecar (ElevenLabs). Without a key it is skipped and the
-# frontend's speak button reports that speech is not configured.
+# Optional speech sidecar (ElevenLabs). Locally this starts the Python fallback
+# (backend/python/tts.py); production runs the LSL sidecar backend/lsl/speech.lsl.
+# Without a key it is skipped and the frontend's speak button reports 503.
 KEY="${ELEVENLABS_KEY_FILE:-$HOME/.config/elevenlabs/key}"
 if [ -f "$KEY" ]; then
   start tts env ELEVENLABS_KEY_FILE="$KEY" TTS_CACHE_DIR="$STATE/data/tts" \

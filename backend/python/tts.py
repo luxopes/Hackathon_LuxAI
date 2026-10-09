@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""ElevenLabs speech sidecar for the ProofPay agent console.
+"""Legacy ElevenLabs speech sidecar — the fallback, not the running service.
 
-The browser asks for a *message index* only; this service reads the stored
-message from the console state, renders it with the ElevenLabs API and returns
-audio/mpeg. The API key stays in a file on the server, so the endpoint cannot be
-misused as a generic text-to-speech proxy. Rendered audio is cached on disk, so
-replaying a message costs no credits.
+The deployed sidecar is backend/lsl/speech.lsl, which does the same work in LSL
+(text to speech plus Scribe transcription). This Python version is kept so the
+stack can fall back by pointing the systemd unit at it again; it reads a stored
+message by index from the console state, renders audio/mpeg through the
+ElevenLabs API and caches the result on disk, and it never accepts free text.
 
 Environment:
   ELEVENLABS_KEY_FILE   key file (default /etc/proofpay-mvp/elevenlabs.key)

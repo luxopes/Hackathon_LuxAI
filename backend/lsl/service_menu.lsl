@@ -1,4 +1,6 @@
-# Nabídka služeb a upravitelná ukázková zadání pro terminálový klient.
+# Service catalog and sample tasks for the terminal client.
+# Each entry names a capability, the agent that serves it and a ready-made
+# task, so the CLI can offer one-keystroke demos of every service.
 items = [
     {"id": "auto", "name": "Automaticky podle zadání", "task": "Prověř nákupní košík ukázkového e-shopu. Objednej kompletní HTTP audit se třemi testy co nejlevněji. Při vadné dodávce reklamuj a zkus jiného dodavatele."},
     {"id": "short-research", "name": "Krátká rešerše", "task": "Připrav krátkou rešerši v češtině: co jsou autonomní softwaroví agenti a jak souvisejí s multiagentními systémy? Uveď dva dohledané zdroje."},

@@ -1,4 +1,7 @@
-# Náhled z opravdových SSE delta rámců; neúplný JSON nikdy nespouští nákup.
+# Incremental decoder for streamed model output (SSE delta frames).
+# It turns partial frames into a live preview for the console; an incomplete
+# frame never reaches the purchase path, so a delivery is bought only once the
+# seller has actually finished and the payload parses.
 load json
 load aikit as ai
 

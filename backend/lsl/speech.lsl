@@ -1,8 +1,9 @@
-# Speech sidecar v LSL: ElevenLabs převod textu na řeč a přepis nahrávky.
-#
-# Binární data záměrně neprocházejí LSL řetězci: MP3 stahuje curl přímo do
-# cache (tu servíruje Caddy) a nahrávku dekóduje openssl base64. Klíč se
-# předává curlu konfiguračním souborem, aby se neobjevil v argumentech.
+# Speech sidecar (LSL): ElevenLabs text-to-speech and Scribe transcription.
+# /api/speak reads one stored agent message or a purchased delivery and returns
+# a URL to a cached mp3; /api/transcribe turns a base64 recording into text.
+# Binary data deliberately never passes through LSL strings: curl downloads the
+# mp3 straight into the cache Caddy serves and openssl decodes the recording,
+# and the API key travels in a curl config file, never in process arguments.
 
 load httpserver as web
 load process

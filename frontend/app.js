@@ -1,7 +1,10 @@
 "use strict";
-// Agentic economy workspace console. Polls the console state and renders the
-// conversation, this session's tasks, the seller board, the live tool-call feed
-// and the wallet. Payments are simulated US dollars held by the marketplace.
+// Agentic economy workspace console: the browser client of the LSL console.
+// It polls GET /api/state and renders the conversation with its tool trace, the
+// task table, the seller board, notifications, the wallet and the Stripe top-up
+// dialog, keeps the light/dark theme and turns the marketplace pages' anchors
+// into visible jumps. Payments are simulated US dollars; every call that
+// changes something carries the account token.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 

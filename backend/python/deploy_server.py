@@ -1,4 +1,8 @@
-"""Nasazení odděleného MVP; spouští se jako root na cílovém serveru po přenosu souborů."""
+"""Deployment helper: install the stack on the target server as root.
+
+It writes the environment files and tokens, installs the systemd units, adds the
+Caddy route for the console and marketplace, starts everything and verifies the
+services answer on their local ports."""
 import datetime
 import hashlib
 import json

@@ -1,4 +1,8 @@
-"""Katalog a předem dohodnuté podmínky dodání služeb za simulované USD."""
+"""Service catalog and the agreed delivery contracts of the marketplace.
+
+Defines the six capabilities sellers can offer, what each delivery must contain
+and how it is structurally checked; the marketplace builds every job contract
+from here, which is why it is shared Python data rather than a copy per agent."""
 import ast
 
 CURRENCY = "USD"

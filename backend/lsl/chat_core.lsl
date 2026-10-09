@@ -1,4 +1,7 @@
-# Konverzační agent skutečně volá katalog a teprve pak rozhoduje o nákupu.
+# Conversational procurement agent for the console.
+# It always fetches the live catalog first, then resolves the turn as buy,
+# unavailable, needs_input (a dialog for the user) or reply, builds a
+# self-contained seller task and renders the purchased delivery as text.
 load buyer_core as buyer
 load aikit as ai
 load json

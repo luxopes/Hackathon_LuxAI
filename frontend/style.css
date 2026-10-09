@@ -1,3 +1,7 @@
+/* Agent console stylesheet: design tokens (light and dark), the shell, panels,
+   tables, badges, dialogs, the chat with tool trace and the live agent bar.
+   The marketplace pages embed a trimmed copy of it through ui.py SITE_CSS, so
+   the console and every public page share one design language. */
 :root{
   --ink:#17202b;--muted:#697586;--line:#e7eaee;--surface:#fff;--canvas:#f8f9fb;--blue:#245dee;--green:#078a4d;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;

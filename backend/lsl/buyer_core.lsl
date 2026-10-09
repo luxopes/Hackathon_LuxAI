@@ -1,4 +1,7 @@
-# Sdílené jádro nakupujícího agenta pro příkazový i terminálový klient.
+# Buying engine shared by the console and the terminal client.
+# It locks the price in escrow, runs the seller, verifies the delivery against
+# the contract and settles or refunds it; it also collects payments, traces
+# every tool call and writes the artifact of a paid delivery to disk.
 load aikit as ai
 load requests
 load env

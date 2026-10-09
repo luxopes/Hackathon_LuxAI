@@ -1,7 +1,9 @@
-# Webový chat ProofPay: HTTP server, chat agent (LuxAI Flash) a živý přehled.
-# Hlavní vlákno obsluhuje HTTP požadavky; každý tah chatu běží ve vlastním
-# vláknu. Stav se předává frontendu přes GET /api/state (krátký polling).
-# Chatová logika je sdílená s TUI přes chat_core.lsl a buyer_core.lsl.
+# ProofPay agent console: the web service behind hackathon.lux-ai.cz/web/.
+# One thread answers HTTP requests while each chat turn runs in its own worker
+# thread; the frontend polls GET /api/state for state, tool trace and questions.
+# Owns accounts (register/login/top-up), the notification bell, the wallet view,
+# card top-ups through Stripe, per-account isolation and on-disk state so a
+# restart never loses a user's tasks. Chat logic comes from chat_core.lsl.
 
 load chat_core as agent
 load buyer_core as buyer

@@ -1,4 +1,7 @@
-# LSL prodejce vykonává audit nebo připravuje objednaný výstup pomocí Flash.
+# Seller service: executes the work a buyer purchases.
+# One binary runs all five sellers (behaviour comes from SELLER_* env files).
+# It streams progress over SSE, produces the contracted artifact with the model
+# and records an execution receipt the marketplace can verify.
 load httpserver
 load requests
 load env

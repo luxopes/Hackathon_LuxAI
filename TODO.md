@@ -137,3 +137,30 @@ repository only as a fallback. Ported behaviour, verified end to end:
 - [ ] `marketplace.py` remains Python on purpose (SQLite transactions and
   constraints are the safety net for money); revisit only with a real ledger
   design, not as a quick port.
+
+## 3. Marketplace in LSL — ported, not switched
+
+`backend/lsl/marketplace.lsl` replaces `backend/python/marketplace.py` on the
+same database (schema, JSON shapes, ledger rows). Verified on a copy of the
+live database with the LSL service on port 3072: offers and the invariant match,
+a full buy-refuse-refund flow ran, and a receipt signed by the LSL verifies with
+`tools/verify_receipt.py`. Before switching production, fix or accept:
+
+- the seller handshake in `/api/jobs/{id}/execute` — a test seller pointed at the
+  LSL marketplace failed in its idle phase while the Python path works, so the
+  delivery leg needs one more debugging pass;
+- heavy reads stay in Python on purpose (the ledger hash chain and export,
+  `/api/payments`, the HTML pages in ui.py) and Caddy must route accordingly
+  (API to the LSL, pages and those reads to Python);
+- the seller-progress SSE relay is simplified in the LSL port: the console no
+  longer renders streamed previews, so the endpoint returns the finished job
+  instead of relaying the seller stream.
+
+## 4. Old signed receipts do not verify after the LC to USD rename
+
+Receipts signed before today's rename carry `"currency": "Lux Coins"` inside the
+signed payload, while the verifier rebuilds it with the current constant
+(`USD`), so `tools/verify_receipt.py` reports tampering. This affects the Python
+marketplace as well; the fresh receipts (signed after the rename) verify. Decide:
+keep a historic currency constant, store the currency per receipt, or treat the
+payload currency as part of the signed data and never rename it again.
